@@ -2,7 +2,8 @@ import '../data/mock_movies.dart';
 import '../models/movie.dart';
 
 /// FakeMovieService가 돌려줄 결과 종류. Loading 이후 화면 상태를 재현할 때 사용한다.
-enum MovieLoadMode { success, empty, failure }
+/// slow는 응답이 늦게 오는 상황(Timeout)을 재현한다.
+enum MovieLoadMode { success, empty, failure, slow }
 
 /// 영화 목록을 불러오지 못했을 때 Service가 던지는 예외.
 /// message는 로그용이며 사용자 화면에는 그대로 표시하지 않는다.
@@ -25,10 +26,15 @@ class FakeMovieService {
     MovieLoadMode mode = MovieLoadMode.success,
   }) async {
     // 네트워크 요청처럼 결과가 나중에 도착하도록 1초 지연 (Loading 화면 최소 800ms 이상)
-    await Future<void>.delayed(const Duration(seconds: 1));
+    // slow는 화면의 Timeout(5초)보다 오래 걸리도록 10초 지연
+    await Future<void>.delayed(
+      mode == MovieLoadMode.slow
+          ? const Duration(seconds: 10)
+          : const Duration(seconds: 1),
+    );
 
     return switch (mode) {
-      MovieLoadMode.success => movies,
+      MovieLoadMode.success || MovieLoadMode.slow => movies,
       MovieLoadMode.empty => const <Movie>[],
       MovieLoadMode.failure => throw const MovieLoadException(
         '영화를 불러오지 못했습니다.',
