@@ -43,12 +43,7 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/movies',
-                // 선택한 장르는 Query Parameter로 전달: /movies?genre=드라마,SF
-                builder: (context, state) => MovieListScreen(
-                  selectedGenres: parseGenres(
-                    state.uri.queryParameters['genre'],
-                  ),
-                ),
+                builder: (context, state) => const MovieListScreen(),
                 // 영화 탭에서 연 상세는 영화 탭 안에 쌓임: /movies/:movieId
                 routes: [_movieDetailRoute(':movieId')],
               ),
@@ -74,19 +69,5 @@ class AppRouter {
       builder: (context, state) =>
           MovieDetailScreen(movieId: state.pathParameters['movieId']!),
     );
-  }
-
-  /// "드라마,SF" → {'드라마', 'SF'}. 값이 없으면 빈 Set(전체).
-  static Set<String> parseGenres(String? value) {
-    if (value == null || value.isEmpty) return {};
-    return value.split(',').where((genre) => genre.isNotEmpty).toSet();
-  }
-
-  /// 선택한 장르를 Query Parameter로 담은 영화 목록 경로. 비어 있으면 /movies.
-  static String movieListLocation(Set<String> genres) {
-    return Uri(
-      path: '/movies',
-      queryParameters: genres.isEmpty ? null : {'genre': genres.join(',')},
-    ).toString();
   }
 }
