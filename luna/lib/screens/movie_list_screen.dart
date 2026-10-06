@@ -2,17 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/mock_movies.dart';
+import '../models/movie.dart';
 import '../router/app_router.dart';
+import '../services/fake_movie_service.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
-import '../widgets/movie/movie_card.dart';
+import '../widgets/movie/movie_grid.dart';
 import '../widgets/movie_list/genre_filter_sheet.dart';
 
 /// 영화 목록. 선택한 장르는 화면 상태가 아니라 URL의 Query Parameter로 받는다.
-class MovieListScreen extends StatelessWidget {
+/// 영화 데이터는 FakeMovieService에서 비동기로 불러온다.
+class MovieListScreen extends StatefulWidget {
   const MovieListScreen({super.key, required this.selectedGenres});
 
   final Set<String> selectedGenres; // 비어 있으면 전체
+
+  @override
+  State<MovieListScreen> createState() => _MovieListScreenState();
+}
+
+class _MovieListScreenState extends State<MovieListScreen> {
+  final _movieService = const FakeMovieService();
+
+  // build는 여러 번 실행되므로 Future는 initState에서 한 번만 만든다.
+  // 장르가 바뀌어도 State는 유지되므로 다시 불러오지 않고 받은 목록을 거른다.
+  late Future<List<Movie>> _moviesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _moviesFuture = _movieService.fetchMovies();
+  }
 
   Future<void> _openGenreFilter(BuildContext context) async {
     final result = await showModalBottomSheet<Set<String>>(
@@ -29,7 +49,7 @@ class MovieListScreen extends StatelessWidget {
           maxChildSize: 0.9, // 위로 드래그하면 거의 전체 화면
           builder: (context, scrollController) => GenreFilterSheet(
             genres: genres,
-            initialSelected: selectedGenres,
+            initialSelected: widget.selectedGenres,
             scrollController: scrollController,
           ),
         );
@@ -46,7 +66,7 @@ class MovieListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filteredMovies = filterMoviesByGenres(selectedGenres);
+    final selectedGenres = widget.selectedGenres;
 
     return Scaffold(
       appBar: MovieLogAppBar(
@@ -91,27 +111,32 @@ class MovieListScreen extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: filteredMovies.isEmpty
-                  ? Center(
+              child: FutureBuilder<List<Movie>>(
+                future: _moviesFuture,
+                builder: (context, snapshot) {
+                  // Future가 완료되기 전에는 영화 카드 대신 진행 상태 표시
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final movies = snapshot.data ?? const <Movie>[];
+                  final filteredMovies = filterMoviesByGenres(
+                    movies,
+                    selectedGenres,
+                  );
+
+                  if (filteredMovies.isEmpty) {
+                    return Center(
                       child: Text(
                         '선택한 장르의 영화가 없어요.',
                         style: theme.textTheme.bodyLarge,
                       ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                      itemCount: filteredMovies.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2, // 한 줄에 영화 카드 2개
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 24,
-                            childAspectRatio: 0.55, // 포스터(2:3) + 제목·연도 텍스트
-                          ),
-                      itemBuilder: (context, index) {
-                        return MovieCard(movie: filteredMovies[index]);
-                      },
-                    ),
+                    );
+                  }
+
+                  return MovieGrid(movies: filteredMovies);
+                },
+              ),
             ),
           ],
         ),
