@@ -9,21 +9,29 @@ class MovieListPreference {
     : _preferences = preferences ?? SharedPreferencesAsync();
 
   // 읽기와 쓰기가 반드시 같은 Key를 쓰도록 한곳에 둔다
-  // TMDB 장르 ID(int)로 저장한다. 이전 버전의 장르 이름(String) 값과 섞이지 않도록 Key를 새로 둔다
-  static const _selectedGenreKey = 'selected_genre_id';
+  // 여러 TMDB 장르 ID를 저장한다. 이전 버전의 값(장르 이름·단일 ID)과 섞이지 않도록 Key를 새로 둔다
+  static const _selectedGenreKey = 'selected_genre_ids';
   static const _sortOrderKey = 'movie_sort_order';
 
   final SharedPreferencesAsync _preferences;
 
-  /// 마지막으로 선택한 TMDB 장르 ID. 저장된 값이 없으면 null("전체").
-  Future<int?> readGenreId() => _preferences.getInt(_selectedGenreKey);
+  /// 마지막으로 선택한 TMDB 장르 ID 목록. 저장된 값이 없으면 null("전체").
+  /// shared_preferences는 int 목록을 저장하지 못하므로 문자열 목록으로 저장하고 읽을 때 되돌린다.
+  Future<List<int>?> readGenreIds() async {
+    final saved = await _preferences.getStringList(_selectedGenreKey);
+    final ids = saved?.map(int.tryParse).nonNulls.toList();
+    return (ids == null || ids.isEmpty) ? null : ids;
+  }
 
-  /// null("전체")이면 저장된 값을 지운다.
-  Future<void> saveGenreId(int? genreId) async {
-    if (genreId == null) {
+  /// null 또는 빈 목록("전체")이면 저장된 값을 지운다.
+  Future<void> saveGenreIds(List<int>? genreIds) async {
+    if (genreIds == null || genreIds.isEmpty) {
       await _preferences.remove(_selectedGenreKey);
     } else {
-      await _preferences.setInt(_selectedGenreKey, genreId);
+      await _preferences.setStringList(
+        _selectedGenreKey,
+        genreIds.map((id) => '$id').toList(),
+      );
     }
   }
 

@@ -2,20 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/tmdb_genre_dto.dart';
 
-/// 영화 목록 상단의 장르 선택 Chip 목록. 가로로 스크롤되며 하나만 선택된다.
+/// 영화 목록 상단의 장르 선택 Chip 목록. 가로로 스크롤되며 Chip을 누르면 그 장르 하나만 선택된다.
 /// 첫 번째 Chip은 allLabel("전체")이고, 누르면 장르 ID 대신 null을 전달한다.
+/// BottomSheet에서 여러 장르를 고른 경우 선택된 Chip이 모두 강조된다.
 class GenreChipBar extends StatelessWidget {
   const GenreChipBar({
     super.key,
     required this.genres,
-    required this.selectedGenreId,
+    required this.selectedGenreIds,
     required this.onSelected,
     this.enabled = true,
     this.allLabel = '전체',
   });
 
   final List<TmdbGenreDto> genres; // Genre API로 받은 id/name
-  final int? selectedGenreId; // null이면 "전체"
+  final List<int>? selectedGenreIds; // null이면 "전체"
   final ValueChanged<int?> onSelected;
   final bool enabled; // false면 모든 Chip을 누를 수 없음 (요청 중)
   final String allLabel;
@@ -39,7 +40,9 @@ class GenreChipBar extends StatelessWidget {
           final (id, name) = options[index];
           return _GenreChip(
             label: name,
-            selected: id == selectedGenreId,
+            selected: id == null
+                ? selectedGenreIds == null
+                : (selectedGenreIds?.contains(id) ?? false),
             onTap: enabled ? () => onSelected(id) : null,
           );
         },

@@ -20,9 +20,10 @@ class TmdbMovieService {
     return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// genreIds가 여러 개면 OR(|)로 연결해 with_genres에 전달한다 (예: 28|12 → 액션 또는 모험).
   Future<TmdbMoviePageDto> discoverMovies({
     required int page,
-    int? genreId,
+    List<int>? genreIds,
   }) async {
     final response = await _dio.get(
       '/discover/movie',
@@ -32,8 +33,8 @@ class TmdbMovieService {
         'sort_by': 'popularity.desc',
         'include_adult': false,
         'include_video': false,
-        // "전체"(null)일 때는 with_genres를 보내지 않는다
-        'with_genres': ?genreId,
+        // "전체"(null 또는 빈 목록)일 때는 with_genres를 보내지 않는다
+        'with_genres': ?_withGenres(genreIds),
       },
     );
     return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
@@ -59,5 +60,10 @@ class TmdbMovieService {
       queryParameters: {'language': 'ko-KR'},
     );
     return TmdbMovieDetailDto.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  static String? _withGenres(List<int>? genreIds) {
+    if (genreIds == null || genreIds.isEmpty) return null;
+    return genreIds.join('|');
   }
 }

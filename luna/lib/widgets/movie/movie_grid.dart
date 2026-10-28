@@ -24,6 +24,8 @@ class MovieGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      // 영화가 적어 화면을 다 채우지 못해도 당겨서 새로고침이 동작하도록 항상 스크롤 허용
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: padding,
       itemCount: movies.length,
       gridDelegate: gridDelegate,
