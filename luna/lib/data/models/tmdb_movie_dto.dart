@@ -23,12 +23,8 @@ class TmdbMovieDto {
   final double voteAverage; // 10점 만점
   final double popularity;
 
-  /// releaseDate의 앞 4자리 연도. 알 수 없으면 null → 화면에서 연도를 표시하지 않는다.
-  int? get releaseYear {
-    final date = releaseDate;
-    if (date == null || date.length < 4) return null;
-    return int.tryParse(date.substring(0, 4));
-  }
+  /// 알 수 없으면 null → 화면에서 연도를 표시하지 않는다.
+  int? get releaseYear => parseReleaseYear(releaseDate);
 
   factory TmdbMovieDto.fromJson(Map<String, dynamic> json) {
     return TmdbMovieDto(
@@ -45,4 +41,10 @@ class TmdbMovieDto {
       popularity: (json['popularity'] as num? ?? 0).toDouble(),
     );
   }
+}
+
+/// 'yyyy-MM-dd' 형식의 release_date에서 연도만 꺼낸다. 없거나 형식이 다르면 null.
+int? parseReleaseYear(String? releaseDate) {
+  if (releaseDate == null || releaseDate.length < 4) return null;
+  return int.tryParse(releaseDate.substring(0, 4));
 }

@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../data/mock_movies.dart';
+import '../data/models/tmdb_movie_detail_dto.dart';
+import '../view_models/movie_detail_view_model.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
+import '../widgets/common/tmdb_poster_image.dart';
 import '../widgets/movie_detail/movie_detail_actions.dart';
 import '../widgets/movie_detail/movie_info_section.dart';
 import '../widgets/movie_detail/movie_synopsis.dart';
 import '../widgets/movie_detail/rating_dialog.dart';
+import '../widgets/movie_list/movie_list_error.dart';
 
+/// 영화 상세. 영화 정보는 MovieDetailViewModel이 TMDB 영화 ID로 조회한다.
 class MovieDetailScreen extends StatefulWidget {
-  const MovieDetailScreen({super.key, required this.movieId});
-
-  // Path Parameter는 문자열로 전달되므로 그대로 받고, 화면에서 숫자로 변환
-  final String movieId;
+  const MovieDetailScreen({super.key});
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -32,10 +34,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     _showSnackBar(_isFavorite ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 삭제했어요.');
   }
 
-  Future<void> _openRatingDialog() async {
+  Future<void> _openRatingDialog(TmdbMovieDetailDto movie) async {
     final rating = await showDialog<double>(
       context: context,
-      builder: (context) => RatingDialog(initialRating: _myRating),
+      // 목록 index가 아니라 TMDB 영화 ID를 전달한다
+      builder: (context) =>
+          RatingDialog(movieId: movie.id, initialRating: _myRating),
     );
     // 확인 없이 바깥을 눌러 닫으면 null → 기존 평점 유지
     if (rating == null || !mounted) return;
@@ -60,8 +64,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Extra에 의존하지 않고 ID로 Mock Data를 다시 찾음 (URL 직접 접근에도 동작)
-    final movie = findMovieById(int.tryParse(widget.movieId));
+    final viewModel = context.watch<MovieDetailViewModel>();
+    final movie = viewModel.movie;
+    final isLoaded = viewModel.status == MovieDetailLoadStatus.success;
 
     return ScaffoldMessenger(
       key: _messengerKey,
@@ -80,41 +85,53 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             ),
           ],
         ),
-        body: movie == null
-            ? Center(
-                child: Text(
-                  '영화를 찾을 수 없어요.',
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              )
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 2 / 3,
-                      child: Image.asset(movie.posterAsset, fit: BoxFit.cover),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                      child: MovieInfoSection(movie: movie),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                      child: MovieSynopsis(synopsis: movie.synopsis),
-                    ),
-                  ],
-                ),
-              ),
-        bottomNavigationBar: movie == null
-            ? null
-            : MovieDetailActions(
+        body: switch (viewModel.status) {
+          MovieDetailLoadStatus.loading => const Center(
+            child: CircularProgressIndicator(),
+          ),
+          MovieDetailLoadStatus.notFound => Center(
+            child: Text(
+              '영화를 찾을 수 없어요.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+          MovieDetailLoadStatus.error => MovieListError(
+            message: '영화 정보를 불러오지 못했어요.',
+            onRetry: () => context.read<MovieDetailViewModel>().load(),
+          ),
+          MovieDetailLoadStatus.success => _buildContent(movie!),
+        },
+        bottomNavigationBar: isLoaded
+            ? MovieDetailActions(
                 isFavorite: _isFavorite,
                 myRating: _myRating,
                 onFavoritePressed: _toggleFavorite,
-                onRatePressed: _openRatingDialog,
-              ),
+                onRatePressed: () => _openRatingDialog(movie!),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildContent(TmdbMovieDetailDto movie) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AspectRatio(
+            aspectRatio: 2 / 3,
+            child: TmdbPosterImage(posterPath: movie.posterPath),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: MovieInfoSection(movie: movie),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+            child: MovieSynopsis(synopsis: movie.overview),
+          ),
+        ],
       ),
     );
   }

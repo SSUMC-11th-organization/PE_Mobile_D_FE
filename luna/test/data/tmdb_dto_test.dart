@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/data/models/tmdb_movie_detail_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_page.dart';
 
@@ -57,5 +58,27 @@ void main() {
     expect(page.results.map((movie) => movie.id), [1, 2]);
     expect(page.totalPages, 100);
     expect(page.totalResults, 2000);
+  });
+
+  test('TmdbMovieDetailDto.fromJson은 genres 배열과 상영시간을 변환한다', () {
+    final movie = TmdbMovieDetailDto.fromJson({
+      'id': 550,
+      'title': '파이트 클럽',
+      'overview': null,
+      'poster_path': null,
+      'release_date': '1999-10-15',
+      'genres': [
+        {'id': 18, 'name': '드라마'},
+      ],
+      'runtime': 139,
+      'vote_average': 8.4,
+      'vote_count': 30000,
+    });
+
+    expect(movie.genres.single.name, '드라마');
+    expect(movie.runtime, 139);
+    expect(movie.voteCount, 30000);
+    expect(movie.overview, '');
+    expect(movie.releaseYear, 1999);
   });
 }

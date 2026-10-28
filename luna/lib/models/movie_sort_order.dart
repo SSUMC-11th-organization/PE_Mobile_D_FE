@@ -1,6 +1,6 @@
 /// 영화 목록의 정렬 방식. name을 shared_preferences에 저장한다.
 enum MovieSortOrder {
-  basic('기본순'),
+  basic('인기순'), // Discover 응답 순서(popularity.desc) 그대로
   rating('평점순'),
   latest('최신순'),
   title('제목순');

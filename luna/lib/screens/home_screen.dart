@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../data/mock_movies.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
@@ -43,7 +42,12 @@ class HomeScreen extends StatelessWidget {
                       style: Theme.of(context).textTheme.headlineLarge,
                     ),
                     const SizedBox(height: 24),
-                    HomeHeroCard(movie: movies.first),
+                    // 추천 카드도 인기 영화 영역과 같은 ViewModel 결과를 쓰고, 이 카드만 다시 그린다
+                    Consumer<MovieHomeViewModel>(
+                      builder: (context, viewModel, child) => HomeHeroCard(
+                        movie: viewModel.popularMovies.firstOrNull,
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -8,21 +8,23 @@ class MovieListPreference {
   MovieListPreference({SharedPreferencesAsync? preferences})
     : _preferences = preferences ?? SharedPreferencesAsync();
 
-  /// 저장된 장르가 없을 때 사용하는 "전체" 장르
-  static const allGenre = '전체';
-
   // 읽기와 쓰기가 반드시 같은 Key를 쓰도록 한곳에 둔다
-  static const _selectedGenreKey = 'selected_genre';
+  // TMDB 장르 ID(int)로 저장한다. 이전 버전의 장르 이름(String) 값과 섞이지 않도록 Key를 새로 둔다
+  static const _selectedGenreKey = 'selected_genre_id';
   static const _sortOrderKey = 'movie_sort_order';
 
   final SharedPreferencesAsync _preferences;
 
-  Future<String> readGenre() async {
-    return await _preferences.getString(_selectedGenreKey) ?? allGenre;
-  }
+  /// 마지막으로 선택한 TMDB 장르 ID. 저장된 값이 없으면 null("전체").
+  Future<int?> readGenreId() => _preferences.getInt(_selectedGenreKey);
 
-  Future<void> saveGenre(String genre) async {
-    await _preferences.setString(_selectedGenreKey, genre);
+  /// null("전체")이면 저장된 값을 지운다.
+  Future<void> saveGenreId(int? genreId) async {
+    if (genreId == null) {
+      await _preferences.remove(_selectedGenreKey);
+    } else {
+      await _preferences.setInt(_selectedGenreKey, genreId);
+    }
   }
 
   /// enum은 바로 저장할 수 없으므로 name(String)으로 저장하고 읽을 때 되돌린다.
