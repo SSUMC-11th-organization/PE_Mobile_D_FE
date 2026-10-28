@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../data/mock_movies.dart';
+import '../view_models/movie_home_view_model.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/home/home_hero_card.dart';
@@ -46,7 +48,18 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              PopularMovieSection(movies: popularMovies),
+              // 인기 영화 영역만 ViewModel을 구독해, 상태가 바뀌어도 홈 전체가 아니라 이 영역만 다시 그린다
+              Consumer<MovieHomeViewModel>(
+                builder: (context, viewModel, child) {
+                  return PopularMovieSection(
+                    status: viewModel.status,
+                    movies: viewModel.popularMovies,
+                    message: viewModel.message,
+                    onRetry: () =>
+                        context.read<MovieHomeViewModel>().loadPopular(),
+                  );
+                },
+              ),
             ],
           ),
         ),

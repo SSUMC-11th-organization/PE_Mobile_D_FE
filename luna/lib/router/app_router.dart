@@ -1,5 +1,7 @@
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../data/services/tmdb_movie_service.dart';
 import '../screens/home_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/movie_detail_screen.dart';
@@ -7,6 +9,7 @@ import '../screens/movie_list_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/sign_up_screen.dart';
 import '../screens/start_screen.dart';
+import '../view_models/movie_home_view_model.dart';
 
 /// 앱 전체에서 사용하는 Route를 한곳에서 관리한다.
 /// 새 화면이 생기면 MaterialApp이 아니라 여기 routes에 GoRoute를 추가한다.
@@ -33,7 +36,15 @@ class AppRouter {
             routes: [
               GoRoute(
                 path: '/home',
-                builder: (context, state) => const HomeScreen(),
+                // 홈 ViewModel은 이 Route에서 만들고, 생성 직후 한 번만 인기 영화를 요청한다.
+                // (build마다 요청이 반복되지 않음. indexedStack이라 탭을 바꿔도 유지됨)
+                builder: (context, state) =>
+                    ChangeNotifierProvider<MovieHomeViewModel>(
+                      create: (context) =>
+                          MovieHomeViewModel(context.read<TmdbMovieService>())
+                            ..loadPopular(),
+                      child: const HomeScreen(),
+                    ),
                 // 홈에서 연 상세는 홈 탭 안에 쌓임: /home/movies/:movieId
                 routes: [_movieDetailRoute('movies/:movieId')],
               ),
