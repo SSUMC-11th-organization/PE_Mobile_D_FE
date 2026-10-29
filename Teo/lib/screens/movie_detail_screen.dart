@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-
-import '../models/movie.dart';
-import '../widgets/movie_rating_input.dart';
-
 import 'package:go_router/go_router.dart';
+
+import '../data/models/tmdb_movie_dto.dart';
+import '../widgets/movie_rating_input.dart';
+import '../widgets/tmdb_poster_image.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key, required this.movie});
 
-  final Movie? movie;
+  final TmdbMovieDto? movie;
 
   @override
   State<MovieDetailScreen> createState() => _MovieDetailScreenState();
@@ -25,6 +25,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     if (movie == null) {
       return const Scaffold(body: Center(child: Text('영화를 찾을 수 없습니다.')));
     }
+
+    final year = movie.releaseDate?.split('-').first ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -59,11 +61,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.asset(
-              movie.posterAsset,
+            TmdbPosterImage(
+              posterPath: movie.posterPath,
               width: double.infinity,
               height: 400,
-              fit: BoxFit.cover,
             ),
 
             const SizedBox(height: 24),
@@ -75,7 +76,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
             const SizedBox(height: 8),
 
-            Text('${movie.genre} · ${movie.year}'),
+            Text(year),
 
             const SizedBox(height: 24),
 
@@ -89,7 +90,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             Row(
               children: [
                 RatingBarIndicator(
-                  rating: 4.5,
+                  rating: movie.voteAverage / 2,
                   itemCount: 5,
                   itemSize: 24,
                   itemBuilder: (context, index) {
@@ -97,7 +98,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   },
                 ),
                 const SizedBox(width: 8),
-                const Text('4.5'),
+                Text((movie.voteAverage / 2).toStringAsFixed(1)),
               ],
             ),
 
@@ -108,7 +109,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 showDialog(
                   context: context,
                   builder: (context) {
-                    return const MovieRatingInput();
+                    return MovieRatingInput(movieId: movie.id);
                   },
                 );
               },

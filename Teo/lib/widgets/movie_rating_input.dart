@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 
 class MovieRatingInput extends StatefulWidget {
-  const MovieRatingInput({super.key});
+  const MovieRatingInput({super.key, required this.movieId});
+
+  final int movieId;
 
   @override
   State<MovieRatingInput> createState() => _MovieRatingInputState();
@@ -47,6 +49,8 @@ class _MovieRatingInputState extends State<MovieRatingInput> {
         ElevatedButton(
           onPressed: rating > 0
               ? () {
+                  // 이후 평점 API에서
+                  // widget.movieId를 movieId로 전달
                   Navigator.pop(context);
                 }
               : null,
