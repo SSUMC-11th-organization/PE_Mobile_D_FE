@@ -116,6 +116,15 @@ abstract final class AppTheme {
       errorBorder: _inputBorder(AppColors.error500),
       focusedErrorBorder: _inputBorder(AppColors.error500, width: 1.5),
     ),
+    // 하단 탭: 표면색 배경, 선택된 탭은 연보라 인디케이터
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: _colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: AppColors.primary200,
+      labelTextStyle: WidgetStatePropertyAll(
+        AppTextStyles.labelLarge.copyWith(fontSize: 12),
+      ),
+    ),
     // 장르 Chip: 연보라 배경의 알약 모양
     chipTheme: ChipThemeData(
       backgroundColor: _colorScheme.primaryContainer,

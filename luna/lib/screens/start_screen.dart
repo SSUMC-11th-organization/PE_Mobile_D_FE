@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
-import 'sign_up_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -12,14 +11,16 @@ class StartScreen extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     return Scaffold(
-      body: SafeArea( // 화면의 안전 영역을 고려하여 UI를 배치
+      body: SafeArea(
+        // 화면의 안전 영역을 고려하여 UI를 배치
         child: Padding(
           padding: const EdgeInsets.fromLTRB(32, 32, 32, 56),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [ // UI 요소들을 세로로 배치
+            children: [
+              // UI 요소들을 세로로 배치
               Text(
-                'FLUTTER 1주차',
+                'FLUTTER 3주차',
                 style: textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -48,13 +49,8 @@ class StartScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: () {
-                  Navigator.of(context).push( // 회원가입 화면으로 이동
-                    MaterialPageRoute<void>(
-                      builder: (_) => const SignUpScreen(),
-                    ),
-                  );
-                },
+                // 시작 화면을 남기지 않고 회원가입으로 이동 (뒤로가기 불가)
+                onPressed: () => context.go('/sign-up'),
                 child: const Text('시작하기'),
               ),
             ],

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_text_form_field.dart';
@@ -96,18 +97,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (!isValid) return;
 
     FocusScope.of(context).unfocus();
+    // ScaffoldMessenger는 앱 전체에서 공유되므로 홈으로 이동한 뒤에도 Snackbar가 보임
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
+    // 회원가입 화면을 남기지 않고 홈으로 이동 (홈에서 뒤로가기 불가)
+    context.go('/home');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const MovieLogAppBar(
-        title: '회원가입',
-        showBackButton: true,
-        centerTitle: true,
-      ),
+      // 시작 화면으로 돌아가지 않도록 뒤로가기 버튼을 표시하지 않음
+      appBar: const MovieLogAppBar(title: '회원가입', centerTitle: true),
       body: SafeArea(
         // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
         child: LayoutBuilder(

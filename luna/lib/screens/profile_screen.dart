@@ -12,7 +12,11 @@ class ProfileScreen extends StatelessWidget {
 
   // 화면에 표시할 데이터. 항목을 추가하면 Widget도 자동으로 늘어남
   static const _stats = [
-    ProfileStat(label: '본 영화', value: '342', iconPath: 'assets/icons/movie.svg'),
+    ProfileStat(
+      label: '본 영화',
+      value: '342',
+      iconPath: 'assets/icons/movie.svg',
+    ),
     ProfileStat(label: '평점', value: '4.2', iconPath: 'assets/icons/star.svg'),
     ProfileStat(
       label: '즐겨찾기',

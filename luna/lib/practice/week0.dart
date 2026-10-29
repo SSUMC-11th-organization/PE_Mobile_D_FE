@@ -18,7 +18,7 @@ void main() {
 
   final List<Movie> movies = [movie1, movie2, movie3];
 
-  for(final m in movies) {
+  for (final m in movies) {
     print('Movie ID: ${m.id}, Title: ${m.title}');
   }
 
@@ -26,4 +26,3 @@ void main() {
   printName('Alice');
   printName(null);
 }
-
