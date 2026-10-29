@@ -70,3 +70,6 @@ app.*.map.json
 **/ios/**/Icon?
 **/ios/**/profile
 **/ios/**/xcuserdata
+
+# TMDB 환경변수
+.env
