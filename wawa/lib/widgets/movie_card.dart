@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../models/movie.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import 'tmdb_poster_image.dart';
 
 class MovieCard extends StatelessWidget {
   const MovieCard({super.key, required this.movie});
 
-  final Movie movie;
+  final TmdbMovieDto movie;
 
   @override
   Widget build(BuildContext context) {
@@ -21,10 +22,10 @@ class MovieCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                movie.posterAsset,
-                fit: BoxFit.cover,
+              child: TmdbPosterImage(
+                posterPath: movie.posterPath,
                 width: double.infinity,
+                height: double.infinity,
               ),
             ),
           ),
@@ -38,11 +39,13 @@ class MovieCard extends StatelessWidget {
               height: 1.2,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            '${movie.year} · ${movie.genre}',
-            style: const TextStyle(fontSize: 13, color: AppColors.gray),
-          ),
+          if (movie.releaseDate != null && movie.releaseDate!.length >= 4) ...[
+            const SizedBox(height: 2),
+            Text(
+              movie.releaseDate!.substring(0, 4),
+              style: const TextStyle(fontSize: 13, color: AppColors.gray),
+            ),
+          ],
         ],
       ),
     );
