@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'profile_screen.dart';
+import 'sign_up_screen.dart';
 
 class StartScreen extends StatelessWidget {
   const StartScreen({super.key});
@@ -49,9 +49,9 @@ class StartScreen extends StatelessWidget {
               const Spacer(),
               FilledButton(
                 onPressed: () {
-                  Navigator.of(context).push( // 프로필 화면으로 이동
+                  Navigator.of(context).push( // 회원가입 화면으로 이동
                     MaterialPageRoute<void>(
-                      builder: (_) => const ProfileScreen(),
+                      builder: (_) => const SignUpScreen(),
                     ),
                   );
                 },

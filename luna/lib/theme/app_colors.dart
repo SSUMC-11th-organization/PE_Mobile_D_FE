@@ -34,6 +34,10 @@ abstract final class AppColors {
   static const tertiary700 = Color(0xFF594400);
   static const tertiary900 = Color(0xFF241A00);
 
+  // Error
+  static const error100 = Color(0xFFF9DEDC);
+  static const error500 = Color(0xFFB3261E);
+
   // Surface Tones
   static const surfaceLowest = Color(0xFFFFFFFF);
   static const surfaceLow = Color(0xFFF5F3F0);

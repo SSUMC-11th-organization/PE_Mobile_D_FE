@@ -9,11 +9,13 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     this.showBackButton = false,
+    this.centerTitle,
     this.actions,
   });
 
   final String title;
   final bool showBackButton; // true면 왼쪽에 뒤로가기 버튼을 표시
+  final bool? centerTitle; // 지정하지 않으면 AppBarTheme 설정(왼쪽 정렬)을 따름
   final List<Widget>? actions;
 
   @override
@@ -33,6 +35,7 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : null,
       title: Text(title),
+      centerTitle: centerTitle,
       actions: actions,
     );
   }

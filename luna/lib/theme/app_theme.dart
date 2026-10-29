@@ -18,6 +18,10 @@ abstract final class AppTheme {
     onTertiary: AppColors.neutral100,
     tertiaryContainer: AppColors.tertiary100,
     onTertiaryContainer: AppColors.tertiary900,
+    error: AppColors.error500,
+    onError: AppColors.neutral100,
+    errorContainer: AppColors.error100,
+    onErrorContainer: AppColors.error500,
     surface: AppColors.surfaceBase,
     onSurface: AppColors.neutral900,
     onSurfaceVariant: AppColors.neutral800,
@@ -38,6 +42,13 @@ abstract final class AppTheme {
     labelLarge: AppTextStyles.labelLarge,
     labelSmall: AppTextStyles.labelSmall,
   );
+
+  static OutlineInputBorder _inputBorder(Color color, {double width = 1}) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: color, width: width),
+    );
+  }
 
   static final ThemeData light = ThemeData(
     useMaterial3: true,
@@ -85,6 +96,25 @@ abstract final class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: AppTextStyles.buttonLabel,
       ),
+    ),
+    // 회원가입 입력창: 회색 배경, 오류 상태에서는 빨간 배경과 테두리
+    inputDecorationTheme: InputDecorationThemeData(
+      filled: true,
+      fillColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.error)
+            ? AppColors.error100
+            : AppColors.surfaceLow,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      hintStyle: AppTextStyles.bodyLarge.copyWith(color: AppColors.neutral800),
+      errorStyle: AppTextStyles.labelSmall.copyWith(
+        fontSize: 12,
+        color: AppColors.error500,
+      ),
+      enabledBorder: _inputBorder(AppColors.secondary300),
+      focusedBorder: _inputBorder(AppColors.primary500, width: 1.5),
+      errorBorder: _inputBorder(AppColors.error500),
+      focusedErrorBorder: _inputBorder(AppColors.error500, width: 1.5),
     ),
     // 장르 Chip: 연보라 배경의 알약 모양
     chipTheme: ChipThemeData(
