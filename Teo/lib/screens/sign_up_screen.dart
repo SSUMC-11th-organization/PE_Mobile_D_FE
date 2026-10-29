@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../widgets/common_app_bar.dart';
 
+import 'package:go_router/go_router.dart';
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -79,7 +81,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     FocusScope.of(context).unfocus();
-    debugPrint('회원가입 입력값이 모두 유효합니다.');
+    context.go('/home');
   }
 
   @override
@@ -97,13 +99,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CommonAppBar(
-        title: '회원가입',
-        centerTitle: true,
-        onBack: () {
-          Navigator.maybePop(context);
-        },
-      ),
+      appBar: CommonAppBar(title: '회원가입', centerTitle: true),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
