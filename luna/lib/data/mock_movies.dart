@@ -1,4 +1,5 @@
 import '../models/movie.dart';
+import '../models/movie_sort_order.dart';
 
 /// 영화 목록의 장르 필터에 표시할 장르. Mock 영화가 없는 장르도 포함한다.
 const genres = ['드라마', 'SF', '애니메이션', '스릴러', '로맨스', '코미디', '판타지', '다큐멘터리'];
@@ -104,10 +105,22 @@ Movie? findMovieById(int? id) {
   return null;
 }
 
-/// 선택한 장르 중 하나에 해당하는 영화만 반환한다. 선택이 없으면 전체 목록.
-List<Movie> filterMoviesByGenres(Set<String> selectedGenres) {
-  if (selectedGenres.isEmpty) return movies;
-  return movies.where((movie) => selectedGenres.contains(movie.genre)).toList();
+/// source 중 선택한 장르의 영화만 반환한다. genres에 없는 값("전체" 등)이면 source 그대로.
+List<Movie> filterMoviesByGenre(List<Movie> source, String genre) {
+  if (!genres.contains(genre)) return source;
+  return source.where((movie) => movie.genre == genre).toList();
+}
+
+/// source를 order에 맞게 정렬한 새 목록을 반환한다. 기본순이면 source 그대로.
+List<Movie> sortMovies(List<Movie> source, MovieSortOrder order) {
+  final compare = switch (order) {
+    MovieSortOrder.basic => null,
+    MovieSortOrder.rating => (Movie a, Movie b) => b.rating.compareTo(a.rating),
+    MovieSortOrder.latest => (Movie a, Movie b) => b.year.compareTo(a.year),
+    MovieSortOrder.title => (Movie a, Movie b) => a.title.compareTo(b.title),
+  };
+  if (compare == null) return source;
+  return [...source]..sort(compare);
 }
 
 /// 평균 평점이 높은 순으로 정렬한 인기 영화 목록.
