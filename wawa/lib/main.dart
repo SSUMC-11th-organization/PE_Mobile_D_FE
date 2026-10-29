@@ -1,22 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'theme/app_theme.dart';
-import 'screens/profile_screen.dart';
+import 'movie_log_app.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   runApp(const MovieLogApp());
-}
-
-class MovieLogApp extends StatelessWidget {
-  const MovieLogApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false, // 오른쪽 위 디버그 띠 제거
-      title: 'MovieLog',
-      theme: AppTheme.light, // 공통 테마 적용
-      home: const ProfileScreen(), // 시작 화면 설정
-    );
-  }
 }

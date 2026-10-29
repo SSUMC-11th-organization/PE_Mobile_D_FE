@@ -12,13 +12,16 @@ void main() {
 
     expect(submitButton().onPressed, isNull);
 
-    await tester.enterText(find.widgetWithText(TextFormField, '닉네임'), '무비러버');
     await tester.enterText(
-      find.widgetWithText(TextFormField, '이메일'),
+      find.widgetWithText(TextFormField, '닉네임을 입력해주세요'),
+      '무비러버',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '이메일 주소를 입력해주세요'),
       'movie@example.com',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, '비밀번호'),
+      find.widgetWithText(TextFormField, '비밀번호를 입력해주세요'),
       'password123',
     );
     await tester.tap(find.byType(Checkbox));
@@ -30,15 +33,18 @@ void main() {
   testWidgets('짧은 닉네임은 validator 오류 메시지를 표시한다', (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(home: SignUpScreen()));
 
-    await tester.enterText(find.widgetWithText(TextFormField, '닉네임'), 'a');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, '닉네임을 입력해주세요'),
+      'a',
+    );
     // 버튼은 닉네임이 짧으면 비활성 상태이므로, 비밀번호 입력창의 완료 액션으로 직접 제출한다.
     await tester.enterText(
-      find.widgetWithText(TextFormField, '비밀번호'),
+      find.widgetWithText(TextFormField, '비밀번호를 입력해주세요'),
       'password123',
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
 
-    expect(find.text('닉네임은 두 글자 이상 입력해주세요.'), findsOneWidget);
+    expect(find.text('닉네임은 2자 이상이어야 합니다.'), findsOneWidget);
   });
 }
