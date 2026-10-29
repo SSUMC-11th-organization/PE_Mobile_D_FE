@@ -1,5 +1,6 @@
 // PR을 위한 주석 추가
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 // [Mission 2] 1. Movie Class를 작성한다.
 class Movie {
@@ -93,6 +94,9 @@ class StartScreen extends StatelessWidget {
                     // [Mission 2] 4. nullable 변환 테스트 출력
                     String? myNickname;
                     debugPrint('환영합니다, ${getDisplayName(myNickname)}님!');
+
+                    // go()로 이동하여 시작 화면이 Back Stack에 남지 않도록 한다.
+                    context.go('/register');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6750A4), // 버튼 보라색

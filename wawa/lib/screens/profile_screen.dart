@@ -89,15 +89,7 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              child: SvgPicture.asset(
-                'assets/logos/movielog_logo.svg',
-                width: 72,
-                height: 72,
-                semanticsLabel: 'MovieLog 로고',
-              ),
-            ),
+            Container(margin: const EdgeInsets.only(bottom: 16)),
             const CircleAvatar(
               radius: 46,
               backgroundColor: AppColors.violet,
