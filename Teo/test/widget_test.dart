@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:movielog/main.dart';
+import 'package:movielog/app/movie_log_app.dart';
 
 void main() {
   testWidgets('시작 화면이 표시된다', (WidgetTester tester) async {
