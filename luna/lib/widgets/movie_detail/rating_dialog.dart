@@ -6,8 +6,11 @@ import '../movie/movie_rating_input.dart';
 /// 확인을 누르면 선택한 별점을 Navigator.pop으로 돌려준다.
 /// 이전 평점을 초기화하고 확인하면 0을 돌려준다(평점 삭제).
 class RatingDialog extends StatefulWidget {
-  const RatingDialog({super.key, this.initialRating});
+  const RatingDialog({super.key, required this.movieId, this.initialRating});
 
+  /// 평점을 남길 영화의 TMDB ID. 이후 평점 API의 CreateRatingRequest.movieId로 그대로 전달한다.
+  /// (목록의 index는 정렬·필터에 따라 바뀌므로 movieId로 쓰지 않는다)
+  final int movieId;
   final double? initialRating; // 이전에 남긴 평점이 있으면 그 값으로 시작
 
   @override

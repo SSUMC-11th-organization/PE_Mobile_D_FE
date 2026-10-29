@@ -1,24 +1,33 @@
 import 'package:flutter/material.dart';
 
-/// 영화 목록 상단의 장르 선택 Chip 목록. 가로로 스크롤되며 하나만 선택된다.
-/// 첫 번째 Chip은 allLabel("전체")이다.
+import '../../data/models/tmdb_genre_dto.dart';
+
+/// 영화 목록 상단의 장르 선택 Chip 목록. 가로로 스크롤되며 Chip을 누르면 그 장르 하나만 선택된다.
+/// 첫 번째 Chip은 allLabel("전체")이고, 누르면 장르 ID 대신 null을 전달한다.
+/// BottomSheet에서 여러 장르를 고른 경우 선택된 Chip이 모두 강조된다.
 class GenreChipBar extends StatelessWidget {
   const GenreChipBar({
     super.key,
     required this.genres,
-    required this.allLabel,
-    required this.selectedGenre,
+    required this.selectedGenreIds,
     required this.onSelected,
+    this.enabled = true,
+    this.allLabel = '전체',
   });
 
-  final List<String> genres;
+  final List<TmdbGenreDto> genres; // Genre API로 받은 id/name
+  final List<int>? selectedGenreIds; // null이면 "전체"
+  final ValueChanged<int?> onSelected;
+  final bool enabled; // false면 모든 Chip을 누를 수 없음 (요청 중)
   final String allLabel;
-  final String selectedGenre;
-  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    final options = [allLabel, ...genres];
+    // "전체"는 id가 없으므로 null로 표현한다
+    final options = <(int?, String)>[
+      (null, allLabel),
+      for (final genre in genres) (genre.id, genre.name),
+    ];
 
     return SizedBox(
       height: 40,
@@ -28,11 +37,13 @@ class GenreChipBar extends StatelessWidget {
         itemCount: options.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final genre = options[index];
+          final (id, name) = options[index];
           return _GenreChip(
-            label: genre,
-            selected: genre == selectedGenre,
-            onTap: () => onSelected(genre),
+            label: name,
+            selected: id == null
+                ? selectedGenreIds == null
+                : (selectedGenreIds?.contains(id) ?? false),
+            onTap: enabled ? () => onSelected(id) : null,
           );
         },
       ),
@@ -49,7 +60,7 @@ class _GenreChip extends StatelessWidget {
 
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap; // null이면 비활성화
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +69,8 @@ class _GenreChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(label),
       selected: selected,
-      onSelected: (_) => onTap(),
+      // onSelected가 null이면 ChoiceChip이 비활성화 모양으로 그려지고 눌리지 않는다
+      onSelected: onTap == null ? null : (_) => onTap!(),
       showCheckmark: false,
       // 선택된 Chip만 진한 보라 배경 + 흰 글자
       selectedColor: colorScheme.primary,
