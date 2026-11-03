@@ -8,7 +8,12 @@ abstract final class AppTextStyles {
     fontWeight: FontWeight.w700,
     color: AppColors.black,
   );
-  static const bodyMedium = TextStyle(
+  static const bodySmall = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: AppColors.black,
+  );
+  static const bodyMedium =TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w400,
     color: AppColors.black,

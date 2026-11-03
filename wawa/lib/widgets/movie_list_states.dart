@@ -5,7 +5,9 @@ class MovieListLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
+    return const Center(
+      child: CircularProgressIndicator(),
+    );
   }
 }
 
@@ -14,12 +16,18 @@ class MovieListEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('조건에 맞는 영화가 없습니다.'));
+    return const Center(
+      child: Text('조건에 맞는 영화가 없습니다.'),
+    );
   }
 }
 
 class MovieListError extends StatelessWidget {
-  const MovieListError({super.key, this.message, required this.onRetry});
+  const MovieListError({
+    super.key,
+    this.message,
+    required this.onRetry,
+  });
 
   final String? message;
   final VoidCallback onRetry;
@@ -34,7 +42,10 @@ class MovieListError extends StatelessWidget {
           const SizedBox(height: 12),
           Text(message ?? '영화를 불러오지 못했습니다.'),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('다시 시도')),
+          FilledButton(
+            onPressed: onRetry,
+            child: const Text('다시 시도'),
+          ),
         ],
       ),
     );

@@ -22,8 +22,7 @@ class MovieHomeViewModel extends ChangeNotifier {
     try {
       final page = await _service.fetchPopular();
       popularMovies = page.results.take(5).toList();
-      debugPrint(
-        // 확인용
+      debugPrint( // 확인용
         '[홈 인기 영화] 응답 ${page.results.length}개 → 표시 ${popularMovies.length}개',
       );
       status = popularMovies.isEmpty

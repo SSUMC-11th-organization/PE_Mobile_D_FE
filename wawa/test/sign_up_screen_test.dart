@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
+import 'package:movielog/data/services/member_check_service.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
+import 'package:movielog/view_models/sign_up_view_model.dart';
+import 'package:provider/provider.dart';
+
+Widget _app() => MaterialApp(
+  home: ChangeNotifierProvider(
+    create: (_) => SignUpViewModel(MemberCheckService(Dio())),
+    child: const SignUpScreen(),
+  ),
+);
 
 void main() {
   testWidgets('가입 버튼은 모든 조건이 충족될 때만 활성화된다', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: SignUpScreen()));
+    await tester.pumpWidget(_app());
 
     final submitButtonFinder = find.widgetWithText(ElevatedButton, '가입하기');
     ElevatedButton submitButton() =>
@@ -31,7 +42,7 @@ void main() {
   });
 
   testWidgets('짧은 닉네임은 validator 오류 메시지를 표시한다', (WidgetTester tester) async {
-    await tester.pumpWidget(const MaterialApp(home: SignUpScreen()));
+    await tester.pumpWidget(_app());
 
     await tester.enterText(
       find.widgetWithText(TextFormField, '닉네임을 입력해주세요'),

@@ -29,9 +29,7 @@ void main() {
 
   testWidgets('poster image load fails', (tester) async {
     await tester.pumpWidget(_poster('/invalid-path.jpg'));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 200)),
-    );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
     await tester.pump();
 
     expect(placeholder, findsOneWidget);

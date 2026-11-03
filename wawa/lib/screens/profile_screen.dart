@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
+import 'package:go_router/go_router.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
@@ -26,14 +26,16 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: Text(
         title,
-        style:
-            titleStyle ??
+        style: titleStyle ??
             AppTextStyles.titleLarge.copyWith(color: AppColors.violet),
       ),
       centerTitle: centerTitle,
       leading: onBack == null
           ? null
-          : IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack),
+          : IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: onBack,
+            ),
       actions: actions,
     );
   }
@@ -89,7 +91,9 @@ class ProfileScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(margin: const EdgeInsets.only(bottom: 16)),
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+                          ),
             const CircleAvatar(
               radius: 46,
               backgroundColor: AppColors.violet,
@@ -109,7 +113,7 @@ class ProfileScreen extends StatelessWidget {
               style: AppTextStyles.bodyMedium,
             ),
             const SizedBox(height: 16),
-
+            
             // 프로필 수정 버튼 (미션 조건에 맞춘 ElevatedButton)
             ElevatedButton.icon(
               onPressed: () {},
@@ -126,25 +130,27 @@ class ProfileScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-
+            
             // 통계 영역 (Row를 사용해 3개의 StatItem을 가로로 배치)
             const Row(
               children: [
-                Expanded(
-                  child: StatItem(label: '본 영화', value: '342'),
-                ),
+                Expanded(child: StatItem(label: '본 영화', value: '342')),
                 SizedBox(width: 8),
-                Expanded(
-                  child: StatItem(label: '평점', value: '4.2'),
-                ),
+                Expanded(child: StatItem(label: '평점', value: '4.2')),
                 SizedBox(width: 8),
-                Expanded(
-                  child: StatItem(label: '즐겨찾기', value: '58'),
-                ),
+                Expanded(child: StatItem(label: '즐겨찾기', value: '58')),
               ],
             ),
+            
+            const SizedBox(height: 16),
 
-            const SizedBox(height: 32),
+            ListTile(
+              title: const Text('내가 등록한 평점'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/my/ratings'),
+            ),
+
+            const SizedBox(height: 16),
 
             // 선호하는 장르 영역
             Align(

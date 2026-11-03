@@ -20,9 +20,8 @@ class FakeMovieService {
     return switch (mode) {
       MovieLoadMode.success => movies,
       MovieLoadMode.empty => const <Movie>[],
-      MovieLoadMode.failure => throw const MovieLoadException(
-        '영화를 불러오지 못했습니다.',
-      ),
+      MovieLoadMode.failure =>
+        throw const MovieLoadException('영화를 불러오지 못했습니다.'),
     };
   }
 }
