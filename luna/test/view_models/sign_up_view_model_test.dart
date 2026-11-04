@@ -123,6 +123,71 @@ void main() {
     expect(viewModel.emailErrorText, isNull);
   });
 
+  test('[Challenge] 중복 응답을 받으면 즉시 확인 버튼이 비활성화된다', () async {
+    viewModel.onNicknameChanged('영화광');
+    final future = viewModel.checkNickname('영화광');
+    service.pending.single.complete(false);
+    await future;
+
+    expect(viewModel.canCheckNickname, isFalse);
+    // 비활성 상태에서 호출돼도 서버에 다시 묻지 않는다
+    await viewModel.checkNickname('영화광');
+    expect(service.nicknameRequests, ['영화광']);
+  });
+
+  test('[Challenge] 다른 값으로 수정하면 에러가 사라지고 다시 확인할 수 있다', () async {
+    viewModel.onNicknameChanged('영화광');
+    final future = viewModel.checkNickname('영화광');
+    service.pending.single.complete(false);
+    await future;
+
+    viewModel.onNicknameChanged('영화광2');
+
+    expect(viewModel.nicknameCheckStatus, CheckStatus.idle);
+    expect(viewModel.nicknameErrorText, isNull);
+    expect(viewModel.canCheckNickname, isTrue);
+  });
+
+  test('[Challenge] 중복이었던 값을 다시 입력하면 재요청 없이 즉시 에러로 돌아온다', () async {
+    viewModel.onNicknameChanged('영화광');
+    final future = viewModel.checkNickname('영화광');
+    service.pending.single.complete(false);
+    await future;
+
+    viewModel.onNicknameChanged('영화');
+    viewModel.onNicknameChanged(' 영화광 '); // 앞뒤 공백은 trim 후 비교
+
+    expect(viewModel.nicknameCheckStatus, CheckStatus.duplicated);
+    expect(viewModel.nicknameErrorText, '이미 사용 중인 닉네임입니다.');
+    expect(viewModel.canCheckNickname, isFalse);
+    expect(service.nicknameRequests, ['영화광']);
+  });
+
+  test('[Challenge] 통신 실패한 값은 중복으로 기억하지 않는다', () async {
+    viewModel.onNicknameChanged('영화광');
+    final future = viewModel.checkNickname('영화광');
+    service.pending.single.completeError(_networkError());
+    await future;
+
+    viewModel.onNicknameChanged('영화');
+    viewModel.onNicknameChanged('영화광');
+
+    expect(viewModel.nicknameCheckStatus, CheckStatus.idle);
+    expect(viewModel.canCheckNickname, isTrue);
+  });
+
+  test('[Challenge] 닉네임의 중복 기억이 이메일에 영향을 주지 않는다', () async {
+    viewModel.onNicknameChanged('same');
+    final future = viewModel.checkNickname('same');
+    service.pending.single.complete(false);
+    await future;
+
+    viewModel.onEmailChanged('same');
+
+    expect(viewModel.emailCheckStatus, CheckStatus.idle);
+    expect(viewModel.canCheckEmail, isTrue);
+  });
+
   test('화면을 떠난 뒤 도착한 응답은 반영하지 않는다', () async {
     viewModel.onNicknameChanged('영화광');
     final future = viewModel.checkNickname('영화광');

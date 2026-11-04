@@ -92,5 +92,14 @@ void main() {
 
     expect(find.text('사용 가능한 이메일입니다.'), findsOneWidget);
     expect(_buttonAt(tester, 2).onPressed, isNotNull);
+
+    // [Challenge] 중복이었던 이메일을 다시 입력하면 재요청 없이 즉시 에러 + 확인 버튼 비활성
+    final requestCount = service.pending.length;
+    await tester.enterText(fields.at(1), 'movie@umc.com');
+    await tester.pump();
+    expect(find.text('이미 사용 중인 이메일입니다.'), findsOneWidget);
+    expect(_buttonAt(tester, 1).onPressed, isNull);
+    expect(_buttonAt(tester, 2).onPressed, isNull);
+    expect(service.pending.length, requestCount);
   });
 }

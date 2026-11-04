@@ -40,8 +40,11 @@ class SignUpViewModel extends ChangeNotifier {
   Future<void> checkNickname(String value) => _check(_nickname, value);
   Future<void> checkEmail(String value) => _check(_email, value);
 
+  // 통신 중이거나, 중복으로 확인된 값을 바꾸기 전까지는 다시 확인할 수 없다
   bool _canCheck(_DuplicateCheck field) =>
-      field.current.isNotEmpty && field.status != CheckStatus.checking;
+      field.current.isNotEmpty &&
+      field.status != CheckStatus.checking &&
+      field.status != CheckStatus.duplicated;
 
   void _onChanged(_DuplicateCheck field, String value) {
     final trimmed = value.trim();
@@ -50,7 +53,11 @@ class SignUpViewModel extends ChangeNotifier {
 
     field.current = trimmed;
     field.version++; // 기다리던 이전 요청의 응답을 무효화
-    field.status = CheckStatus.idle;
+    // 마지막으로 중복이었던 값을 다시 입력하면 서버에 묻지 않고 즉시 중복 상태로 되돌린다
+    // (서버 상태가 바뀌었을 수 있으므로 최종 기준은 회원가입 POST의 409)
+    field.status = trimmed == field.duplicated
+        ? CheckStatus.duplicated
+        : CheckStatus.idle;
     notifyListeners();
   }
 
@@ -79,6 +86,7 @@ class SignUpViewModel extends ChangeNotifier {
     // 화면을 떠났거나 그사이 입력이 바뀌었으면 늦게 도착한 응답은 버린다
     if (_disposed || version != field.version) return;
     field.status = result;
+    if (result == CheckStatus.duplicated) field.duplicated = requested;
     notifyListeners();
   }
 
@@ -98,6 +106,7 @@ class _DuplicateCheck {
 
   CheckStatus status = CheckStatus.idle;
   String current = ''; // 입력창의 현재 값(trim)
+  String? duplicated; // 마지막으로 서버가 '중복'이라고 응답한 값(trim)
   int version = 0; // 요청할 때와 입력이 바뀔 때 증가. 다르면 응답을 무시
 
   /// TextFormField의 errorText로 연결되는 문구
