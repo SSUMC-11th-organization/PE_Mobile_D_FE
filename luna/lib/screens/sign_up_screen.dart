@@ -10,7 +10,6 @@ import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_button.dart';
 import '../widgets/common/movie_log_text_form_field.dart';
 import '../widgets/sign_up/login_prompt.dart';
-import '../widgets/sign_up/sign_up_submit_button.dart';
 import '../widgets/sign_up/sign_up_welcome_text.dart';
 import '../widgets/sign_up/terms_agreement_checkbox.dart';
 
@@ -88,11 +87,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  // 모든 입력이 유효하고 약관에 동의했을 때만 버튼 활성화
-  bool get _canSubmit =>
+  // 모든 입력이 유효하고, 닉네임·이메일 중복 확인을 통과하고, 약관에 동의했을 때만 활성화
+  // (Form.validate()는 서버 중복 결과를 모르므로 ViewModel 상태를 따로 확인)
+  bool _canSubmit(SignUpViewModel viewModel) =>
       _validateNickname(_nicknameController.text) == null &&
       _validateEmail(_emailController.text) == null &&
       _validatePassword(_passwordController.text) == null &&
+      viewModel.nicknameCheckStatus == CheckStatus.available &&
+      viewModel.emailCheckStatus == CheckStatus.available &&
       _agreedToTerms;
 
   void _submit() {
@@ -111,8 +113,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 시작 화면으로 돌아가지 않도록 뒤로가기 버튼을 표시하지 않음
-      appBar: const MovieLogAppBar(title: '회원가입', centerTitle: true),
+      // 시작 화면에서 go로 들어오므로 뒤로가기는 /start로 이동
+      appBar: const MovieLogAppBar(
+        title: '회원가입',
+        centerTitle: true,
+        showBackButton: true,
+        fallbackLocation: '/start',
+      ),
       body: SafeArea(
         // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
         child: LayoutBuilder(
@@ -263,7 +270,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onChanged: (value) => setState(() => _agreedToTerms = value),
                 ),
                 const SizedBox(height: 16),
-                SignUpSubmitButton(onPressed: _canSubmit ? _submit : null),
+                // Form 하단 버튼: 부모가 허용하는 최대 너비
+                MovieLogButton(
+                  label: '가입하기',
+                  width: double.infinity,
+                  height: 56,
+                  onPressed: _canSubmit(viewModel) ? _submit : null,
+                ),
                 const SizedBox(height: 32),
                 const LoginPrompt(),
               ],

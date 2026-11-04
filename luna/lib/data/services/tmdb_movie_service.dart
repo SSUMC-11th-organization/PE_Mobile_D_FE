@@ -62,6 +62,17 @@ class TmdbMovieService {
     return TmdbMovieDetailDto.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// 평점 목록처럼 영화 정보가 보조 데이터인 곳에서 사용한다.
+  /// TMDB에 없는 영화(404)만 null로 바꾸고, 그 밖의 통신 실패는 그대로 던진다.
+  Future<TmdbMovieDetailDto?> findMovieById(int movieId) async {
+    try {
+      return await fetchMovieDetail(movieId);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
   static String? _withGenres(List<int>? genreIds) {
     if (genreIds == null || genreIds.isEmpty) return null;
     return genreIds.join('|');
