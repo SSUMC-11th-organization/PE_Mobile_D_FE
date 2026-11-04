@@ -38,6 +38,10 @@ abstract final class AppColors {
   static const error100 = Color(0xFFF9DEDC);
   static const error500 = Color(0xFFB3261E);
 
+  // Status (중복 확인 안내 문구)
+  static const success500 = Color(0xFF2E7D32); // 사용 가능
+  static const info500 = Color(0xFF1F5FBF); // 확인 중
+
   // Surface Tones
   static const surfaceLowest = Color(0xFFFFFFFF);
   static const surfaceLow = Color(0xFFF5F3F0);

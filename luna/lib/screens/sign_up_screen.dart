@@ -2,8 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../theme/app_colors.dart';
+import '../view_models/sign_up_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
+import '../widgets/common/movie_log_button.dart';
 import '../widgets/common/movie_log_text_form_field.dart';
 import '../widgets/sign_up/login_prompt.dart';
 import '../widgets/sign_up/sign_up_submit_button.dart';
@@ -145,8 +149,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // 중복 확인 상태에 맞는 안내 문구 색 (사용 가능: 초록, 확인 중: 파랑)
+  static Color? _messageColor(CheckStatus status) => switch (status) {
+    CheckStatus.available => AppColors.success500,
+    CheckStatus.checking => AppColors.info500,
+    _ => null,
+  };
+
   // 휴대폰과 넓은 화면 모두 같은 Form(같은 Controller·Validator·상태)을 사용
   Widget _buildForm({required double minHeight}) {
+    // 중복 확인 상태가 바뀌면 입력창 에러·안내 문구·버튼을 다시 그림
+    final viewModel = context.watch<SignUpViewModel>();
+
     return Form(
       key: _formKey,
       // 사용자가 입력을 시작한 뒤부터 입력할 때마다 검증
@@ -169,9 +183,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   hintText: '닉네임을 입력해주세요',
                   textInputAction: TextInputAction.next,
                   validator: _validateNickname,
-                  // 입력값에 따라 아이콘과 버튼 활성화도 다시 그리기 위해 setState
-                  onChanged: (_) => setState(() {}),
+                  errorText: viewModel.nicknameErrorText,
+                  message: viewModel.nicknameMessage,
+                  messageColor: _messageColor(viewModel.nicknameCheckStatus),
+                  isConfirmed:
+                      viewModel.nicknameCheckStatus == CheckStatus.available,
+                  onChanged: (value) {
+                    // 입력이 바뀌면 이전 중복 확인 결과를 무효화
+                    viewModel.onNicknameChanged(value);
+                    // 입력값에 따라 아이콘과 버튼 활성화도 다시 그리기 위해 setState
+                    setState(() {});
+                  },
                   onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
+                  // 입력창 옆 보조 버튼: width를 지정하지 않아 내용 기반 크기
+                  trailing: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.nicknameCheckStatus == CheckStatus.checking,
+                    // 형식이 맞지 않으면 서버에 묻지 않도록 비활성
+                    onPressed:
+                        viewModel.canCheckNickname &&
+                            _validateNickname(_nicknameController.text) == null
+                        ? () =>
+                              viewModel.checkNickname(_nicknameController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 MovieLogTextFormField(
@@ -182,8 +218,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   validator: _validateEmail,
-                  onChanged: (_) => setState(() {}),
+                  errorText: viewModel.emailErrorText,
+                  message: viewModel.emailMessage,
+                  messageColor: _messageColor(viewModel.emailCheckStatus),
+                  isConfirmed:
+                      viewModel.emailCheckStatus == CheckStatus.available,
+                  onChanged: (value) {
+                    viewModel.onEmailChanged(value);
+                    setState(() {});
+                  },
                   onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
+                  trailing: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.emailCheckStatus == CheckStatus.checking,
+                    onPressed:
+                        viewModel.canCheckEmail &&
+                            _validateEmail(_emailController.text) == null
+                        ? () => viewModel.checkEmail(_emailController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 MovieLogTextFormField(

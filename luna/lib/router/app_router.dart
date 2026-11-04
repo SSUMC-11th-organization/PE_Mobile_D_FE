@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/services/member_check_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../screens/home_screen.dart';
 import '../screens/main_screen.dart';
@@ -12,6 +13,7 @@ import '../screens/start_screen.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
+import '../view_models/sign_up_view_model.dart';
 
 /// 앱 전체에서 사용하는 Route를 한곳에서 관리한다.
 /// 새 화면이 생기면 MaterialApp이 아니라 여기 routes에 GoRoute를 추가한다.
@@ -25,7 +27,12 @@ class AppRouter {
       GoRoute(path: '/start', builder: (context, state) => const StartScreen()),
       GoRoute(
         path: '/sign-up',
-        builder: (context, state) => const SignUpScreen(),
+        // 중복 확인 상태는 회원가입 화면에서만 쓰므로 이 Route에서 ViewModel을 만든다
+        builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
+          create: (context) =>
+              SignUpViewModel(context.read<MemberCheckService>()),
+          child: const SignUpScreen(),
+        ),
       ),
       // 탭마다 독립된 Navigator(Branch)를 두고 IndexedStack으로 모두 유지
       // → 탭을 바꿔도 각 탭의 화면 Stack·스크롤·필터 상태가 남음
