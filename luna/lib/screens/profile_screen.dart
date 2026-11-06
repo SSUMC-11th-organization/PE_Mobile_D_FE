@@ -4,6 +4,7 @@ import '../models/profile_stat.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/profile/edit_profile_button.dart';
 import '../widgets/profile/favorite_genres.dart';
+import '../widgets/profile/my_ratings_entry.dart';
 import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/profile_stats.dart';
 
@@ -47,6 +48,8 @@ class ProfileScreen extends StatelessWidget {
               SizedBox(height: 24),
               ProfileStats(stats: _stats),
               SizedBox(height: 24),
+              MyRatingsEntry(),
+              SizedBox(height: 32),
               FavoriteGenres(genres: _genres),
             ],
           ),

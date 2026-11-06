@@ -12,23 +12,25 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBackButton = false,
     this.centerTitle,
     this.actions,
+    this.fallbackLocation = '/home',
   });
 
   final String title;
   final bool showBackButton; // true면 왼쪽에 뒤로가기 버튼을 표시
   final bool? centerTitle; // 지정하지 않으면 AppBarTheme 설정(왼쪽 정렬)을 따름
   final List<Widget>? actions;
+  final String fallbackLocation; // 돌아갈 이전 화면이 없을 때 이동할 경로
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   // 이전 화면이 쌓여 있으면 pop으로 돌아가고,
-  // 없으면(URL로 바로 들어온 경우 등) 홈으로 이동해 버튼이 동작하지 않는 상황을 막음
+  // 없으면(URL로 바로 들어온 경우 등) fallbackLocation으로 이동해 버튼이 동작하지 않는 상황을 막음
   void _goBack(BuildContext context) {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go('/home');
+      context.go(fallbackLocation);
     }
   }
 

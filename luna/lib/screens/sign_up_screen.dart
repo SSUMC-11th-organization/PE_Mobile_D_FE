@@ -2,11 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../theme/app_colors.dart';
+import '../view_models/sign_up_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
+import '../widgets/common/movie_log_button.dart';
 import '../widgets/common/movie_log_text_form_field.dart';
 import '../widgets/sign_up/login_prompt.dart';
-import '../widgets/sign_up/sign_up_submit_button.dart';
 import '../widgets/sign_up/sign_up_welcome_text.dart';
 import '../widgets/sign_up/terms_agreement_checkbox.dart';
 
@@ -84,11 +87,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  // 모든 입력이 유효하고 약관에 동의했을 때만 버튼 활성화
-  bool get _canSubmit =>
+  // 모든 입력이 유효하고, 닉네임·이메일 중복 확인을 통과하고, 약관에 동의했을 때만 활성화
+  // (Form.validate()는 서버 중복 결과를 모르므로 ViewModel 상태를 따로 확인)
+  bool _canSubmit(SignUpViewModel viewModel) =>
       _validateNickname(_nicknameController.text) == null &&
       _validateEmail(_emailController.text) == null &&
       _validatePassword(_passwordController.text) == null &&
+      viewModel.nicknameCheckStatus == CheckStatus.available &&
+      viewModel.emailCheckStatus == CheckStatus.available &&
       _agreedToTerms;
 
   void _submit() {
@@ -107,8 +113,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // 시작 화면으로 돌아가지 않도록 뒤로가기 버튼을 표시하지 않음
-      appBar: const MovieLogAppBar(title: '회원가입', centerTitle: true),
+      // 시작 화면에서 go로 들어오므로 뒤로가기는 /start로 이동
+      appBar: const MovieLogAppBar(
+        title: '회원가입',
+        centerTitle: true,
+        showBackButton: true,
+        fallbackLocation: '/start',
+      ),
       body: SafeArea(
         // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
         child: LayoutBuilder(
@@ -145,8 +156,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  // 중복 확인 상태에 맞는 안내 문구 색 (사용 가능: 초록, 확인 중: 파랑)
+  static Color? _messageColor(CheckStatus status) => switch (status) {
+    CheckStatus.available => AppColors.success500,
+    CheckStatus.checking => AppColors.info500,
+    _ => null,
+  };
+
   // 휴대폰과 넓은 화면 모두 같은 Form(같은 Controller·Validator·상태)을 사용
   Widget _buildForm({required double minHeight}) {
+    // 중복 확인 상태가 바뀌면 입력창 에러·안내 문구·버튼을 다시 그림
+    final viewModel = context.watch<SignUpViewModel>();
+
     return Form(
       key: _formKey,
       // 사용자가 입력을 시작한 뒤부터 입력할 때마다 검증
@@ -169,9 +190,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   hintText: '닉네임을 입력해주세요',
                   textInputAction: TextInputAction.next,
                   validator: _validateNickname,
-                  // 입력값에 따라 아이콘과 버튼 활성화도 다시 그리기 위해 setState
-                  onChanged: (_) => setState(() {}),
+                  errorText: viewModel.nicknameErrorText,
+                  message: viewModel.nicknameMessage,
+                  messageColor: _messageColor(viewModel.nicknameCheckStatus),
+                  isConfirmed:
+                      viewModel.nicknameCheckStatus == CheckStatus.available,
+                  onChanged: (value) {
+                    // 입력이 바뀌면 이전 중복 확인 결과를 무효화
+                    viewModel.onNicknameChanged(value);
+                    // 입력값에 따라 아이콘과 버튼 활성화도 다시 그리기 위해 setState
+                    setState(() {});
+                  },
                   onFieldSubmitted: (_) => _emailFocusNode.requestFocus(),
+                  // 입력창 옆 보조 버튼: width를 지정하지 않아 내용 기반 크기
+                  trailing: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.nicknameCheckStatus == CheckStatus.checking,
+                    // 형식이 맞지 않으면 서버에 묻지 않도록 비활성
+                    onPressed:
+                        viewModel.canCheckNickname &&
+                            _validateNickname(_nicknameController.text) == null
+                        ? () =>
+                              viewModel.checkNickname(_nicknameController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 MovieLogTextFormField(
@@ -182,8 +225,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   validator: _validateEmail,
-                  onChanged: (_) => setState(() {}),
+                  errorText: viewModel.emailErrorText,
+                  message: viewModel.emailMessage,
+                  messageColor: _messageColor(viewModel.emailCheckStatus),
+                  isConfirmed:
+                      viewModel.emailCheckStatus == CheckStatus.available,
+                  onChanged: (value) {
+                    viewModel.onEmailChanged(value);
+                    setState(() {});
+                  },
                   onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
+                  trailing: MovieLogButton(
+                    label: '중복 확인',
+                    isLoading:
+                        viewModel.emailCheckStatus == CheckStatus.checking,
+                    onPressed:
+                        viewModel.canCheckEmail &&
+                            _validateEmail(_emailController.text) == null
+                        ? () => viewModel.checkEmail(_emailController.text)
+                        : null,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 MovieLogTextFormField(
@@ -209,7 +270,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onChanged: (value) => setState(() => _agreedToTerms = value),
                 ),
                 const SizedBox(height: 16),
-                SignUpSubmitButton(onPressed: _canSubmit ? _submit : null),
+                // Form 하단 버튼: 부모가 허용하는 최대 너비
+                MovieLogButton(
+                  label: '가입하기',
+                  width: double.infinity,
+                  height: 56,
+                  onPressed: _canSubmit(viewModel) ? _submit : null,
+                ),
                 const SizedBox(height: 32),
                 const LoginPrompt(),
               ],
