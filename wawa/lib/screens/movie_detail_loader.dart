@@ -9,7 +9,11 @@ import '../view_models/movie_detail_view_model.dart';
 import 'movie_detail_screen.dart';
 
 class MovieDetailLoader extends StatefulWidget {
-  const MovieDetailLoader({super.key, required this.movieId, this.initialMovie});
+  const MovieDetailLoader({
+    super.key,
+    required this.movieId,
+    this.initialMovie,
+  });
 
   final int movieId;
   final TmdbMovieDto? initialMovie;
@@ -35,7 +39,9 @@ class _MovieDetailLoaderState extends State<MovieDetailLoader> {
       future: _movieFuture, // build마다 새 Future를 만들지 않습니다.
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         if (snapshot.hasError || snapshot.data == null) {
           return Scaffold(

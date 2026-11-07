@@ -40,8 +40,9 @@ class MyRatingsViewModel extends ChangeNotifier {
         if (_disposed || version != _requestVersion) return;
         if (!_movieCache.containsKey(rating.movieId)) {
           try {
-            _movieCache[rating.movieId] =
-                await _movieService.findMovieById(rating.movieId);
+            _movieCache[rating.movieId] = await _movieService.findMovieById(
+              rating.movieId,
+            );
           } on DioException {
             // 일시적 네트워크 실패는 캐시하지 않습니다. 다음 로딩에서 재시도합니다.
           }

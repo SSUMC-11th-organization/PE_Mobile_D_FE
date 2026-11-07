@@ -37,9 +37,7 @@ class AppRouter {
       GoRoute(
         path: '/register',
         builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
-          create: (context) => SignUpViewModel(
-            context.read<SignUpService>(),
-          ),
+          create: (context) => SignUpViewModel(context.read<SignUpService>()),
           child: const SignUpScreen(), // 회원가입 화면
         ),
       ),
@@ -53,21 +51,23 @@ class AppRouter {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (context, state) => ChangeNotifierProvider<MovieHomeViewModel>(
-              create: (context) => MovieHomeViewModel(
-                context.read<TmdbMovieService>(),
-              )..loadPopular(),
-              child: const HomeScreen(),
-            ),
+            builder: (context, state) =>
+                ChangeNotifierProvider<MovieHomeViewModel>(
+                  create: (context) =>
+                      MovieHomeViewModel(context.read<TmdbMovieService>())
+                        ..loadPopular(),
+                  child: const HomeScreen(),
+                ),
           ),
           GoRoute(
             path: '/movies',
-            builder: (context, state) => ChangeNotifierProvider<MovieListViewModel>(
-              create: (context) => MovieListViewModel(
-                context.read<TmdbMovieService>(),
-              )..loadInitial(),
-              child: const MovieListScreen(),
-            ),
+            builder: (context, state) =>
+                ChangeNotifierProvider<MovieListViewModel>(
+                  create: (context) =>
+                      MovieListViewModel(context.read<TmdbMovieService>())
+                        ..loadInitial(),
+                  child: const MovieListScreen(),
+                ),
           ),
           GoRoute(
             path: '/my',
@@ -106,12 +106,16 @@ class AppRouter {
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['movieId'] ?? '');
           if (id == null || id < 1) {
-            return const Scaffold(body: Center(child: Text('영화 ID가 올바르지 않습니다.')));
+            return const Scaffold(
+              body: Center(child: Text('영화 ID가 올바르지 않습니다.')),
+            );
           }
           final extra = state.extra;
           return MovieDetailLoader(
             movieId: id,
-            initialMovie: extra is TmdbMovieDto && extra.id == id ? extra : null,
+            initialMovie: extra is TmdbMovieDto && extra.id == id
+                ? extra
+                : null,
           );
         },
       ),

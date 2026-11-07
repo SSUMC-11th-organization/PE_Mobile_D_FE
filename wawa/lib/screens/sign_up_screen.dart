@@ -149,9 +149,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
     if (viewModel.snackbarMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(viewModel.snackbarMessage!)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(viewModel.snackbarMessage!)));
     }
   }
 
@@ -459,10 +458,7 @@ class _CheckMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String, Color)? message = switch (status) {
-      CheckStatus.checking => (
-        '$subject 사용 가능 여부를 확인 중입니다.',
-        AppColors.info,
-      ),
+      CheckStatus.checking => ('$subject 사용 가능 여부를 확인 중입니다.', AppColors.info),
       CheckStatus.available => ('사용 가능한 $subject입니다.', AppColors.success),
       _ => null,
     };

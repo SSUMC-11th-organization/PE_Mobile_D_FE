@@ -107,8 +107,9 @@ class SignUpViewModel extends ChangeNotifier {
           _currentNickname != requested) {
         return;
       }
-      nicknameCheckStatus =
-          available ? CheckStatus.available : CheckStatus.duplicated;
+      nicknameCheckStatus = available
+          ? CheckStatus.available
+          : CheckStatus.duplicated;
       nicknameErrorText = available ? null : '이미 사용 중인 닉네임입니다.';
       if (!available) _duplicatedNickname = requested;
     } on DioException {
@@ -155,8 +156,9 @@ class SignUpViewModel extends ChangeNotifier {
           _currentEmail != requested) {
         return;
       }
-      emailCheckStatus =
-          available ? CheckStatus.available : CheckStatus.duplicated;
+      emailCheckStatus = available
+          ? CheckStatus.available
+          : CheckStatus.duplicated;
       emailErrorText = available ? null : '이미 사용 중인 이메일입니다.';
       if (!available) _duplicatedEmail = requested;
     } on DioException {

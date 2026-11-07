@@ -144,11 +144,12 @@ Future<void> onEditPressed(BuildContext context, RatingDto rating) async {
     builder: (_) => RatingDialog(
       initialScore: rating.score,
       initialComment: rating.comment, // null이면 TextField가 빈 칸으로 시작합니다.
-      onSubmit: (score, comment) => context.read<MyRatingsViewModel>().updateRating(
-        ratingId: rating.ratingId,
-        score: score,
-        comment: comment,
-      ),
+      onSubmit: (score, comment) =>
+          context.read<MyRatingsViewModel>().updateRating(
+            ratingId: rating.ratingId,
+            score: score,
+            comment: comment,
+          ),
     ),
   );
 

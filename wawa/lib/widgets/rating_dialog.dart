@@ -55,9 +55,7 @@ class _RatingDialogState extends State<RatingDialog> {
               maxLines: 3,
               maxLength: 500,
               enabled: !_isSubmitting,
-              decoration: const InputDecoration(
-                hintText: '코멘트를 남겨보세요 (선택)',
-              ),
+              decoration: const InputDecoration(hintText: '코멘트를 남겨보세요 (선택)'),
             ),
             if (_errorText != null) ...[
               const SizedBox(height: 8),
@@ -68,7 +66,9 @@ class _RatingDialogState extends State<RatingDialog> {
         actions: [
           MovieLogButton(
             label: '취소',
-            onPressed: _isSubmitting ? null : () => Navigator.pop(context, false),
+            onPressed: _isSubmitting
+                ? null
+                : () => Navigator.pop(context, false),
           ),
           MovieLogButton(
             label: '확인',
