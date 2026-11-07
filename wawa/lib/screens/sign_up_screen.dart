@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/movielog_button.dart';
 import 'profile_screen.dart' show CommonAppBar;
@@ -29,16 +31,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   static final _emailRegExp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-  bool get _canSubmit =>
+  static final _passwordRegExp = RegExp(
+    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$',
+  );
+
+  bool _canSubmit(SignUpViewModel viewModel) =>
       _nicknameController.text.trim().length >= 2 &&
+      _nicknameController.text.trim().length <= 12 &&
       _emailRegExp.hasMatch(_emailController.text.trim()) &&
-      _passwordController.text.length >= 8 &&
+      _passwordRegExp.hasMatch(_passwordController.text) &&
+      viewModel.nicknameCheckStatus == CheckStatus.available &&
+      viewModel.emailCheckStatus == CheckStatus.available &&
       _agreedToTerms;
 
   String? _validateNickname(String? value) {
     final nickname = value?.trim() ?? '';
     if (nickname.isEmpty) return null;
-    if (nickname.length < 2) return '닉네임은 2자 이상이어야 합니다.';
+    if (nickname.length < 2 || nickname.length > 12) {
+      return '닉네임은 2~12자여야 합니다.';
+    }
     return null;
   }
 
@@ -52,7 +63,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _validatePassword(String? value) {
     final password = value ?? '';
     if (password.isEmpty) return null;
-    if (password.length < 8) return '비밀번호는 8자 이상이어야 합니다.';
+    if (!_passwordRegExp.hasMatch(password)) {
+      return '비밀번호는 대문자/소문자/숫자/특수문자(!@#\$%^&*)를 포함한 8자 이상이어야 합니다.';
+    }
     return null;
   }
 
@@ -113,12 +126,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
     FocusScope.of(context).unfocus();
-    // go()로 이동하여 회원가입 화면이 Back Stack에 남지 않도록 한다.
-    context.go('/home');
+    final viewModel = context.read<SignUpViewModel>();
+    if (!_canSubmit(viewModel)) return;
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+    if (!mounted) return;
+    if (viewModel.submitStatus == SubmitStatus.success &&
+        viewModel.createdMemberId != null) {
+      context.read<LearningMemberSession>().setMemberId(
+        viewModel.createdMemberId!,
+      );
+      context.go('/movies');
+      return;
+    }
+    if (viewModel.snackbarMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(viewModel.snackbarMessage!)));
+    }
   }
 
   @override
@@ -295,11 +328,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           _validatePassword,
                                           _passwordController.text,
                                         ),
+                                        errorText: viewModel.passwordErrorText,
                                       ),
                                       obscureText: true,
                                       textInputAction: TextInputAction.done,
                                       validator: _validatePassword,
-                                      onChanged: (_) => setState(() {}),
+                                      onChanged: (_) {
+                                        viewModel.onPasswordChanged();
+                                        setState(() {});
+                                      },
                                       onFieldSubmitted: (_) => _submit(),
                                     ),
                                   ],
@@ -314,10 +351,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 setState(() => _agreedToTerms = value),
                           ),
                           const SizedBox(height: 24),
-                          MovieLogButton(
-                            label: '가입하기',
-                            width: double.infinity,
-                            onPressed: _canSubmit ? _submit : null,
+                          Consumer<SignUpViewModel>(
+                            builder: (context, viewModel, child) =>
+                                MovieLogButton(
+                                  label: '가입하기',
+                                  width: double.infinity,
+                                  isLoading:
+                                      viewModel.submitStatus ==
+                                      SubmitStatus.submitting,
+                                  onPressed: _canSubmit(viewModel)
+                                      ? _submit
+                                      : null,
+                                ),
                           ),
                           const SizedBox(height: 16),
                           const _LoginPrompt(),
@@ -413,10 +458,7 @@ class _CheckMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String, Color)? message = switch (status) {
-      CheckStatus.checking => (
-        '$subject 사용 가능 여부를 확인 중입니다.',
-        AppColors.info,
-      ),
+      CheckStatus.checking => ('$subject 사용 가능 여부를 확인 중입니다.', AppColors.info),
       CheckStatus.available => ('사용 가능한 $subject입니다.', AppColors.success),
       _ => null,
     };
