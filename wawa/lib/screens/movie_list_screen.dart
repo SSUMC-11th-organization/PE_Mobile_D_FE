@@ -14,15 +14,16 @@ class MovieListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('영화', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
+        actions: [
+          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
+        ],
       ),
       body: Column(
         children: [
           // 장르 Chip: 요청 중에는 선택하지 못하게 막는다.
           Consumer<MovieListViewModel>(
             builder: (context, viewModel, child) {
-              final isLoading =
-                  viewModel.status == MovieListLoadStatus.idle ||
+              final isLoading = viewModel.status == MovieListLoadStatus.idle ||
                   viewModel.status == MovieListLoadStatus.loading;
               final chips = <({int? id, String name})>[
                 (id: null, name: '전체'),
@@ -36,8 +37,7 @@ class MovieListScreen extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: chips.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 8),
+                  separatorBuilder: (context, index) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final chip = chips[index];
                     final isSelected = chip.id == viewModel.selectedGenreId;
@@ -47,8 +47,8 @@ class MovieListScreen extends StatelessWidget {
                       onSelected: isLoading
                           ? null
                           : (_) => context
-                                .read<MovieListViewModel>()
-                                .selectGenre(chip.id),
+                              .read<MovieListViewModel>()
+                              .selectGenre(chip.id),
                       selectedColor: AppColors.violet,
                       labelStyle: TextStyle(
                         color: isSelected ? AppColors.white : AppColors.black,
@@ -73,16 +73,16 @@ class MovieListScreen extends StatelessWidget {
                   MovieListLoadStatus.idle ||
                   MovieListLoadStatus.loading => const MovieListLoading(),
                   MovieListLoadStatus.error => MovieListError(
-                    message: viewModel.message,
-                    // 장르 목록이 없으면 처음부터, 있으면 선택된 장르로 재요청
-                    onRetry: () => viewModel.genres.isEmpty
-                        ? viewModel.loadInitial()
-                        : viewModel.selectGenre(viewModel.selectedGenreId),
-                  ),
+                      message: viewModel.message,
+                      // 장르 목록이 없으면 처음부터, 있으면 선택된 장르로 재요청
+                      onRetry: () => viewModel.genres.isEmpty
+                          ? viewModel.loadInitial()
+                          : viewModel.selectGenre(viewModel.selectedGenreId),
+                    ),
                   MovieListLoadStatus.empty => const MovieListEmpty(),
                   MovieListLoadStatus.success => MovieGrid(
-                    movies: viewModel.movies,
-                  ),
+                      movies: viewModel.movies,
+                    ),
                 };
               },
             ),

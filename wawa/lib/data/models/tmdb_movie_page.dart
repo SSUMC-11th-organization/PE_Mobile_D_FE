@@ -19,7 +19,11 @@ class TmdbMoviePageDto {
     return TmdbMoviePageDto(
       page: (json['page'] as num).toInt(),
       results: rawResults
-          .map((item) => TmdbMovieDto.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => TmdbMovieDto.fromJson(
+              item as Map<String, dynamic>,
+            ),
+          )
           .toList(),
       totalPages: (json['total_pages'] as num).toInt(),
       totalResults: (json['total_results'] as num).toInt(),

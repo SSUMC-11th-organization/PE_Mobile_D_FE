@@ -36,8 +36,7 @@ class MovieListViewModel extends ChangeNotifier {
         if (byId.length == 30) break;
       }
 
-      debugPrint(
-        // 확인용
+      debugPrint( // 확인용
         '[영화 목록] genreId=${genreId ?? '전체'} page=$pageNumber '
         '응답 ${page.results.length}개 → 누적 ${byId.length}개',
       );
@@ -46,8 +45,7 @@ class MovieListViewModel extends ChangeNotifier {
       pageNumber++;
     }
 
-    debugPrint(
-      // 확인용
+    debugPrint( // 확인용
       '[영화 목록] genreId=${genreId ?? '전체'} → 최종 ${byId.length}개 (최대 30개)',
     );
     return byId.values.take(30).toList();

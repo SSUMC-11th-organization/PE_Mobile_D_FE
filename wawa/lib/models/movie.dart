@@ -23,8 +23,7 @@ const movies = [
     genre: '로맨스',
     year: 2024,
     posterAsset: 'assets/images/posters/hero_under_the_starlight.jpg',
-    synopsis:
-        '바쁜 현대 사회 속에서 서로의 존재를 잊고 살아가던 두 남녀가 우연한 계기로 '
+    synopsis: '바쁜 현대 사회 속에서 서로의 존재를 잊고 살아가던 두 남녀가 우연한 계기로 '
         '작은 천문대에서 만나게 됩니다. 매일 밤 별을 관측하며 서로의 상처를 치유하고, '
         '잊고 있던 꿈과 사랑을 다시금 깨닫게 되는 따뜻한 이야기입니다.',
   ),

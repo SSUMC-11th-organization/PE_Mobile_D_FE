@@ -24,7 +24,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     setState(() => _isFavorite = !_isFavorite);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.'),
+        content: Text(
+          _isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.',
+        ),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -94,10 +96,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     const SizedBox(height: 20),
                     const Text(
                       '시놉시스',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(movie.synopsis!, style: AppTextStyles.bodyMedium),
@@ -109,9 +108,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _toggleFavorite,
                           icon: Icon(
-                            _isFavorite
-                                ? Icons.bookmark
-                                : Icons.bookmark_border,
+                            _isFavorite ? Icons.bookmark : Icons.bookmark_border,
                             color: AppColors.violet,
                           ),
                           label: Text(_isFavorite ? '즐겨찾기됨' : '즐겨찾기'),

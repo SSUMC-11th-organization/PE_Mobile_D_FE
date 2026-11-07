@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatelessWidget {
-  const MainScreen({
-    super.key,
-    required this.currentIndex,
-    required this.child,
-  });
+  const MainScreen({super.key, required this.currentIndex, required this.child});
 
   final int currentIndex;
   final Widget child;
