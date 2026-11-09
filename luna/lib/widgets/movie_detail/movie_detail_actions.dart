@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 
 /// 상세 화면 하단에 고정되는 즐겨찾기 / 평점 남기기 버튼.
-/// 즐겨찾기 여부와 내 평점은 부모(상세 화면)가 상태로 관리한다.
+/// 즐겨찾기 여부는 부모(상세 화면)가 상태로 관리한다.
 class MovieDetailActions extends StatelessWidget {
   const MovieDetailActions({
     super.key,
     required this.isFavorite,
-    required this.myRating,
     required this.onFavoritePressed,
+    required this.canRate,
     required this.onRatePressed,
   });
 
   final bool isFavorite;
-  final double? myRating; // 아직 평점을 남기지 않았으면 null
+  final bool canRate; // 학습용 회원가입을 마쳐 memberId가 있을 때만 true
   final VoidCallback onFavoritePressed;
   final VoidCallback onRatePressed;
 
@@ -50,9 +50,9 @@ class MovieDetailActions extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: onRatePressed,
+                  onPressed: canRate ? onRatePressed : null,
                   icon: const Icon(Icons.rate_review_outlined),
-                  label: Text(myRating == null ? '평점 남기기' : '내 평점 $myRating'),
+                  label: Text(canRate ? '평점 남기기' : '회원가입 필요'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(_buttonHeight),
                     shape: const StadiumBorder(),

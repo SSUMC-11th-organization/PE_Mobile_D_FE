@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
+import '../view_models/submit_status.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_button.dart';
 import '../widgets/common/movie_log_text_form_field.dart';
@@ -39,6 +42,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   static const _scrollPadding = EdgeInsets.fromLTRB(24, 24, 24, 32);
 
   static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  static final _passwordPattern = RegExp(
+    r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$',
+  );
 
   @override
   void dispose() {
@@ -59,6 +65,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     if (nickname.length < 2) {
       return '닉네임은 2자 이상이어야 합니다.';
+    }
+    if (nickname.length > 12) {
+      return '닉네임은 12자 이하여야 합니다.';
     }
     return null;
   }
@@ -81,8 +90,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (password.isEmpty) {
       return '비밀번호를 입력해주세요.';
     }
-    if (password.length < 8) {
-      return '비밀번호는 8자 이상이어야 합니다.';
+    if (!_passwordPattern.hasMatch(password)) {
+      return '대문자·소문자·숫자·특수문자(!@#\$%^&*)를 포함해 8자 이상 입력해주세요.';
     }
     return null;
   }
@@ -95,19 +104,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _validatePassword(_passwordController.text) == null &&
       viewModel.nicknameCheckStatus == CheckStatus.available &&
       viewModel.emailCheckStatus == CheckStatus.available &&
+      viewModel.submitStatus != SubmitStatus.submitting &&
       _agreedToTerms;
 
-  void _submit() {
+  Future<void> _submit() async {
     // 버튼 활성화 조건과 별개로, 제출 시 Form 전체를 다시 검증
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
     FocusScope.of(context).unfocus();
-    // ScaffoldMessenger는 앱 전체에서 공유되므로 홈으로 이동한 뒤에도 Snackbar가 보임
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
-    // 회원가입 화면을 남기지 않고 홈으로 이동 (홈에서 뒤로가기 불가)
-    context.go('/home');
+    final viewModel = context.read<SignUpViewModel>();
+    final session = context.read<LearningMemberSession>();
+    // ScaffoldMessenger는 앱 전체에서 공유되므로 화면을 이동한 뒤에도 Snackbar가 보임
+    final messenger = ScaffoldMessenger.of(context);
+
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+    if (!mounted) return;
+
+    final memberId = viewModel.createdMemberId;
+    if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
+      session.setMemberId(memberId);
+      messenger.showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
+      // 회원가입 화면을 남기지 않고 영화 목록으로 이동 (뒤로가기 불가)
+      context.go('/movies');
+      return;
+    }
+
+    final message = viewModel.snackbarMessage;
+    if (message != null) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -256,7 +288,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   // 마지막 입력창이므로 완료 버튼을 누르면 키보드가 닫힘
                   textInputAction: TextInputAction.done,
                   validator: _validatePassword,
-                  onChanged: (_) => setState(() {}),
+                  // 로컬 validator를 통과해도 서버가 거부하면 이 문구로 에러를 표시
+                  errorText: viewModel.passwordErrorText,
+                  onChanged: (_) {
+                    viewModel.onPasswordChanged();
+                    setState(() {});
+                  },
                 ),
               ],
             ),
@@ -275,6 +312,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   label: '가입하기',
                   width: double.infinity,
                   height: 56,
+                  isLoading: viewModel.submitStatus == SubmitStatus.submitting,
                   onPressed: _canSubmit(viewModel) ? _submit : null,
                 ),
                 const SizedBox(height: 32),

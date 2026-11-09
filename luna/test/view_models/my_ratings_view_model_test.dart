@@ -55,7 +55,7 @@ RatingDto _rating(int ratingId, int movieId) => RatingDto(
 );
 
 DioException _statusError(int statusCode) {
-  final options = RequestOptions(path: '/v5/members/1/ratings');
+  final options = RequestOptions(path: '/v6/members/1/ratings');
   return DioException.badResponse(
     statusCode: statusCode,
     requestOptions: options,
@@ -74,7 +74,7 @@ void main() {
     final viewModel = MyRatingsViewModel(
       service,
       _FakeTmdbMovieService(),
-      sampleMemberId,
+      1,
     );
     expect(viewModel.status, MyRatingsLoadStatus.idle);
 

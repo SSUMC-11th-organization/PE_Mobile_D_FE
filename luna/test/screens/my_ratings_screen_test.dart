@@ -104,7 +104,7 @@ void main() {
   });
 
   testWidgets('실패하면 상태 코드별 문구와 다시 시도 버튼을 보여준다', (tester) async {
-    final options = RequestOptions(path: '/v5/members/1/ratings');
+    final options = RequestOptions(path: '/v6/members/1/ratings');
     final viewModel = await _pumpScreen(
       tester,
       _FakeRatingApiService(

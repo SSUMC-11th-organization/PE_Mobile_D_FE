@@ -20,7 +20,7 @@ class PopularMovieCard extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/home/movies/${movie.id}'),
+      onTap: () => context.push('/home/movies/${movie.id}', extra: movie),
       child: SizedBox(
         width: 140,
         child: Column(

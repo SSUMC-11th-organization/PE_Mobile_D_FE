@@ -1,4 +1,4 @@
-/// v5 유저별 평점 조회(GET /v5/members/{memberId}/ratings) 배열의 항목 하나.
+/// 유저별 평점 조회(GET /v6/members/{memberId}/ratings) 배열의 항목 하나.
 class RatingDto {
   const RatingDto({
     required this.ratingId,

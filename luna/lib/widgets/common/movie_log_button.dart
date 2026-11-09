@@ -16,6 +16,8 @@ class MovieLogButton extends StatelessWidget {
     this.isLoading = false,
     this.width,
     this.height = 48,
+    this.isSecondary = false,
+    this.borderRadius = 12,
   });
 
   final String label;
@@ -23,6 +25,8 @@ class MovieLogButton extends StatelessWidget {
   final bool isLoading; // true면 onPressed와 관계없이 비활성 + 인디케이터 표시
   final double? width;
   final double height; // 기본값은 입력창 높이(48)와 맞춤
+  final bool isSecondary; // true면 Dialog의 취소처럼 연보라 배경의 보조 버튼
+  final double borderRadius;
 
   bool get _disabled => isLoading || onPressed == null;
 
@@ -34,8 +38,12 @@ class MovieLogButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: _disabled ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary500,
-          foregroundColor: AppColors.neutral100,
+          backgroundColor: isSecondary
+              ? AppColors.primary100
+              : AppColors.primary500,
+          foregroundColor: isSecondary
+              ? AppColors.primary500
+              : AppColors.neutral100,
           // 통신 중은 회색, 조건 미충족은 연보라로 구분
           disabledBackgroundColor: isLoading
               ? AppColors.neutral800
@@ -48,7 +56,7 @@ class MovieLogButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           textStyle: AppTextStyles.buttonLabel,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(borderRadius),
           ),
         ),
         child: isLoading ? _buildIndicator() : Text(label),

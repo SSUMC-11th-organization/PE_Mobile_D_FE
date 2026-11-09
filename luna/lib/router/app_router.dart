@@ -1,9 +1,10 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../data/services/member_check_service.dart';
+import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
+import '../data/services/sign_up_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../screens/home_screen.dart';
 import '../screens/main_screen.dart';
@@ -13,11 +14,13 @@ import '../screens/my_ratings_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/sign_up_screen.dart';
 import '../screens/start_screen.dart';
+import '../view_models/learning_member_session.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
 import '../view_models/my_ratings_view_model.dart';
 import '../view_models/sign_up_view_model.dart';
+import '../widgets/common/movie_log_app_bar.dart';
 
 /// 앱 전체에서 사용하는 Route를 한곳에서 관리한다.
 /// 새 화면이 생기면 MaterialApp이 아니라 여기 routes에 GoRoute를 추가한다.
@@ -38,7 +41,7 @@ class AppRouter {
         // 중복 확인 상태는 회원가입 화면에서만 쓰므로 이 Route에서 ViewModel을 만든다
         builder: (context, state) => ChangeNotifierProvider<SignUpViewModel>(
           create: (context) =>
-              SignUpViewModel(context.read<MemberCheckService>()),
+              SignUpViewModel(context.read<SignUpService>()),
           child: const SignUpScreen(),
         ),
       ),
@@ -94,15 +97,28 @@ class AppRouter {
                     path: 'ratings', // 최종 경로: /my/ratings
                     // 탭 Navigator가 아닌 root Navigator 위에 표시해 하단 NavigationBar를 가린다
                     parentNavigatorKey: rootNavigatorKey,
-                    builder: (context, state) =>
-                        ChangeNotifierProvider<MyRatingsViewModel>(
-                          create: (context) => MyRatingsViewModel(
-                            context.read<RatingApiService>(),
-                            context.read<TmdbMovieService>(),
-                            sampleMemberId, // 6주차는 학습용 ID 1
-                          )..load(),
-                          child: const MyRatingsScreen(),
-                        ),
+                    builder: (context, state) {
+                      final id = context.read<LearningMemberSession>().memberId;
+                      if (id == null) {
+                        return const Scaffold(
+                          appBar: MovieLogAppBar(
+                            title: '내가 등록한 평점',
+                            showBackButton: true,
+                            centerTitle: true,
+                            fallbackLocation: '/my',
+                          ),
+                          body: Center(child: Text('학습용 회원가입이 필요합니다.')),
+                        );
+                      }
+                      return ChangeNotifierProvider<MyRatingsViewModel>(
+                        create: (context) => MyRatingsViewModel(
+                          context.read<RatingApiService>(),
+                          context.read<TmdbMovieService>(),
+                          id,
+                        )..load(),
+                        child: const MyRatingsScreen(),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -118,14 +134,24 @@ class AppRouter {
   static GoRoute _movieDetailRoute(String path) {
     return GoRoute(
       path: path,
-      builder: (context, state) => ChangeNotifierProvider<MovieDetailViewModel>(
-        create: (context) => MovieDetailViewModel(
-          context.read<TmdbMovieService>(),
-          // Path Parameter는 문자열이므로 숫자로 변환. 숫자가 아니면 null
-          movieId: int.tryParse(state.pathParameters['movieId']!),
-        )..load(),
-        child: const MovieDetailScreen(),
-      ),
+      builder: (context, state) {
+        // Path Parameter는 문자열이므로 숫자로 변환. 숫자가 아니면 null
+        final id = int.tryParse(state.pathParameters['movieId']!);
+        // extra는 Deep Link로 들어오면 없으므로 URL의 ID와 일치할 때만 사용한다
+        final extra = state.extra;
+        return ChangeNotifierProvider<MovieDetailViewModel>(
+          create: (context) => MovieDetailViewModel(
+            context.read<TmdbMovieService>(),
+            context.read<RatingApiService>(),
+            movieId: id,
+            memberId: context.read<LearningMemberSession>().memberId,
+            initialMovie: extra is TmdbMovieDto && extra.id == id
+                ? extra
+                : null,
+          )..load(),
+          child: const MovieDetailScreen(),
+        );
+      },
     );
   }
 }

@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/data/services/member_check_service.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/common/movie_log_button.dart';
 import 'package:provider/provider.dart';
 
-class _FakeMemberCheckService extends MemberCheckService {
-  _FakeMemberCheckService() : super(Dio());
+class _FakeSignUpService extends SignUpService {
+  _FakeSignUpService() : super(Dio());
 
   final pending = <Completer<bool>>[];
 
@@ -40,7 +40,7 @@ void main() {
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
-    final service = _FakeMemberCheckService();
+    final service = _FakeSignUpService();
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
@@ -57,7 +57,7 @@ void main() {
 
     await tester.enterText(fields.at(0), '영화광');
     await tester.enterText(fields.at(1), 'movie@umc.com');
-    await tester.enterText(fields.at(2), 'password1');
+    await tester.enterText(fields.at(2), 'Password1!');
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(_button('가입하기'), findsOneWidget);
