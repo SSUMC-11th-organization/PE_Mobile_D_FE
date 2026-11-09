@@ -26,6 +26,7 @@ class _FakeRatingApiService extends RatingApiService {
   }
 
   Object? writeError;
+  Set<int> failingDeleteIds = {};
   final updates = <(int, int, int, String?)>[];
   final deletes = <(int, int)>[];
 
@@ -46,6 +47,9 @@ class _FakeRatingApiService extends RatingApiService {
     required int ratingId,
   }) async {
     deletes.add((memberId, ratingId));
+    if (failingDeleteIds.contains(ratingId)) {
+      throw _writeError(404, '존재하지 않는 평점입니다.');
+    }
     if (writeError != null) throw writeError!;
   }
 }
@@ -294,6 +298,91 @@ void main() {
       await viewModel.deleteRating(1);
 
       expect(service.requestedIds, isEmpty);
+    });
+  });
+
+  group('다중 삭제', () {
+    late _FakeRatingApiService service;
+    late MyRatingsViewModel viewModel;
+
+    setUp(() async {
+      service = _FakeRatingApiService(
+        ratings: [_rating(1, 550), _rating(2, 13), _rating(3, 680)],
+      );
+      viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 7);
+      await viewModel.load();
+      viewModel
+        ..enterSelectionMode()
+        ..toggleSelection(1)
+        ..toggleSelection(2);
+    });
+
+    test('취소하면 선택을 해제하고 기본 목록으로 돌아간다', () {
+      viewModel.cancelSelection();
+
+      expect(viewModel.isSelectionMode, isFalse);
+      expect(viewModel.selectedRatingIds, isEmpty);
+    });
+
+    test('모두 성공하면 선택 모드를 끝내고 재조회가 끝날 때 로딩을 해제한다', () async {
+      service.gate = Completer<void>();
+      service.ratings = [_rating(3, 680)];
+
+      final future = viewModel.deleteSelectedRatings();
+      expect(viewModel.isDeletingSelected, isTrue);
+      await pumpEventQueue();
+      expect(viewModel.isDeletingSelected, isTrue); // GET 대기 중에도 유지
+
+      service.gate!.complete();
+      expect(await future, 0);
+
+      expect(service.deletes, [(7, 1), (7, 2)]);
+      expect(viewModel.isDeletingSelected, isFalse);
+      expect(viewModel.isSelectionMode, isFalse);
+      expect(viewModel.ratings.length, 1);
+    });
+
+    test('일부만 실패하면 실패 수를 돌려주고 남은 항목의 선택을 유지한다', () async {
+      service
+        ..failingDeleteIds = {2}
+        ..ratings = [_rating(2, 13), _rating(3, 680)];
+
+      expect(await viewModel.deleteSelectedRatings(), 1);
+
+      expect(viewModel.selectedRatingIds, {2});
+      expect(viewModel.isSelectionMode, isTrue);
+      expect(viewModel.ratings.length, 2);
+    });
+
+    test('실패했지만 재조회 결과에 없는 항목은 선택에서 뺀다', () async {
+      service
+        ..failingDeleteIds = {2}
+        ..ratings = [_rating(3, 680)];
+
+      expect(await viewModel.deleteSelectedRatings(), 1);
+
+      expect(viewModel.selectedRatingIds, isEmpty);
+      expect(viewModel.isSelectionMode, isFalse);
+    });
+
+    test('삭제 성공 뒤 GET만 실패하면 재조회 안내를 남기고 로딩을 해제한다', () async {
+      service.error = _statusError(500);
+
+      expect(await viewModel.deleteSelectedRatings(), 0);
+
+      expect(viewModel.status, MyRatingsLoadStatus.error);
+      expect(viewModel.refreshWarning, contains('저장은 완료됐지만'));
+      expect(viewModel.isDeletingSelected, isFalse);
+    });
+
+    test('모두 실패하면 저장 완료 안내를 보여주지 않는다', () async {
+      service
+        ..failingDeleteIds = {1, 2}
+        ..error = _statusError(500);
+
+      expect(await viewModel.deleteSelectedRatings(), 2);
+
+      expect(viewModel.refreshWarning, isNull);
     });
   });
 }

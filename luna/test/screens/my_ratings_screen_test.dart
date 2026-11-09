@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +21,8 @@ class _FakeRatingApiService extends RatingApiService {
   Exception? error;
   final updates = <(int, int, String?)>[];
   final deletes = <int>[];
+  Completer<void>? deleteGate;
+  Set<int> failingDeleteIds = {};
 
   @override
   Future<List<RatingDto>> fetchMyRatings(int memberId) async {
@@ -42,6 +46,13 @@ class _FakeRatingApiService extends RatingApiService {
     required int ratingId,
   }) async {
     deletes.add(ratingId);
+    await deleteGate?.future;
+    if (failingDeleteIds.contains(ratingId)) {
+      throw DioException.connectionError(
+        requestOptions: RequestOptions(path: '/v6/members/1/ratings/1'),
+        reason: 'offline',
+      );
+    }
     ratings = ratings.where((item) => item.ratingId != ratingId).toList();
   }
 }
@@ -216,6 +227,96 @@ void main() {
       expect(find.textContaining('저장은 완료됐지만'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
       expect(service.deletes.length, 1);
+    });
+  });
+
+  group('다중 삭제', () {
+    Future<_FakeRatingApiService> pumpSelecting(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final service = _FakeRatingApiService(ratings: List.of(_ratings));
+      final viewModel = await _pumpScreen(tester, service);
+      await viewModel.load();
+      await tester.pump();
+      await tester.tap(find.text('편집'));
+      await tester.pump();
+      return service;
+    }
+
+    MovieLogButton deleteButton(WidgetTester tester) =>
+        tester.widget<MovieLogButton>(
+          find.widgetWithText(MovieLogButton, '선택한 0개 삭제'),
+        );
+
+    testWidgets('편집을 누르면 수정·삭제 대신 CheckBox와 선택 수·취소를 보여준다', (tester) async {
+      await pumpSelecting(tester);
+
+      expect(find.byType(Checkbox), findsNWidgets(2));
+      expect(find.text('수정'), findsNothing);
+      expect(find.text('0개 선택됨'), findsOneWidget);
+      expect(deleteButton(tester).onPressed, isNull);
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      expect(find.text('1개 선택됨'), findsOneWidget);
+      expect(find.text('선택한 1개 삭제'), findsOneWidget);
+
+      await tester.tap(find.text('취소'));
+      await tester.pump();
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('편집'), findsOneWidget);
+    });
+
+    testWidgets('확인 Dialog는 바로 닫히고 삭제 중에는 오버레이와 이탈 방지를 유지한다', (tester) async {
+      final service = await pumpSelecting(tester);
+      service.deleteGate = Completer<void>();
+
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      await tester.tap(find.text('선택한 1개 삭제'));
+      await tester.pumpAndSettle();
+      expect(find.text('선택한 평점을 삭제할까요?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(MovieLogButton, '삭제'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // 요청이 끝나지 않았어도 Dialog는 이미 닫혀 있다
+      expect(find.text('선택한 평점을 삭제할까요?'), findsNothing);
+      expect(find.byType(ModalBarrier), findsWidgets);
+      expect(
+        tester.widget<PopScope>(find.byType(PopScope).first).canPop,
+        isFalse,
+      );
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      service.deleteGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(service.deletes, [1]);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(
+        tester.widget<PopScope>(find.byType(PopScope).first).canPop,
+        isTrue,
+      );
+    });
+
+    testWidgets('일부만 실패하면 Snackbar로 안내한다', (tester) async {
+      final service = await pumpSelecting(tester);
+      service.failingDeleteIds = {3};
+
+      await tester.tap(find.byType(Checkbox).at(0));
+      await tester.pump();
+      await tester.tap(find.byType(Checkbox).at(1));
+      await tester.pump();
+      await tester.tap(find.text('선택한 2개 삭제'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MovieLogButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('1개 항목을 삭제하지 못했습니다'), findsOneWidget);
+      expect(find.text('1개 선택됨'), findsOneWidget);
     });
   });
 }

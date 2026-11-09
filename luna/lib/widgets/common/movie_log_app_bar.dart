@@ -10,6 +10,7 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     this.showBackButton = false,
+    this.backEnabled = true,
     this.centerTitle,
     this.actions,
     this.fallbackLocation = '/home',
@@ -17,6 +18,8 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   final String title;
   final bool showBackButton; // true면 왼쪽에 뒤로가기 버튼을 표시
+  // context.go·pop은 PopScope를 거치지 않으므로 제출 중에는 버튼 자체를 막는다
+  final bool backEnabled;
   final bool? centerTitle; // 지정하지 않으면 AppBarTheme 설정(왼쪽 정렬)을 따름
   final List<Widget>? actions;
   final String fallbackLocation; // 돌아갈 이전 화면이 없을 때 이동할 경로
@@ -40,7 +43,7 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false,
       leading: showBackButton
           ? IconButton(
-              onPressed: () => _goBack(context),
+              onPressed: backEnabled ? () => _goBack(context) : null,
               icon: const AppSvgIcon(
                 'assets/icons/arrow_back.svg',
                 semanticsLabel: '뒤로가기',

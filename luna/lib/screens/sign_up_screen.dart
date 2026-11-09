@@ -146,45 +146,54 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // 시작 화면에서 go로 들어오므로 뒤로가기는 /start로 이동
-      appBar: const MovieLogAppBar(
-        title: '회원가입',
-        centerTitle: true,
-        showBackButton: true,
-        fallbackLocation: '/start',
-      ),
-      body: SafeArea(
-        // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= _wideLayoutBreakpoint;
-            // 휴대폰에서는 Form이 최소한 화면 높이만큼 차지하게 해서
-            // 약관·버튼 영역을 화면 아래쪽에 붙임 (키보드가 열리면 스크롤)
-            final minFormHeight = isWide
-                ? 0.0
-                : math.max(
-                    0.0,
-                    constraints.maxHeight - _scrollPadding.vertical,
-                  );
+    final isSubmitting =
+        context.watch<SignUpViewModel>().submitStatus ==
+        SubmitStatus.submitting;
 
-            // 넓은 화면: 가운데 정렬 + 최대 너비 제한 / 휴대폰: 위쪽부터 전체 너비 사용
-            return Align(
-              alignment: isWide ? Alignment.center : Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: isWide ? _maxFormWidth : double.infinity,
+    // 제출이 끝나야(성공·실패 무관) 화면을 벗어날 수 있다
+    return PopScope(
+      canPop: !isSubmitting,
+      child: Scaffold(
+        // 시작 화면에서 go로 들어오므로 뒤로가기는 /start로 이동
+        appBar: MovieLogAppBar(
+          title: '회원가입',
+          centerTitle: true,
+          showBackButton: true,
+          backEnabled: !isSubmitting,
+          fallbackLocation: '/start',
+        ),
+        body: SafeArea(
+          // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= _wideLayoutBreakpoint;
+              // 휴대폰에서는 Form이 최소한 화면 높이만큼 차지하게 해서
+              // 약관·버튼 영역을 화면 아래쪽에 붙임 (키보드가 열리면 스크롤)
+              final minFormHeight = isWide
+                  ? 0.0
+                  : math.max(
+                      0.0,
+                      constraints.maxHeight - _scrollPadding.vertical,
+                    );
+
+              // 넓은 화면: 가운데 정렬 + 최대 너비 제한 / 휴대폰: 위쪽부터 전체 너비 사용
+              return Align(
+                alignment: isWide ? Alignment.center : Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: isWide ? _maxFormWidth : double.infinity,
+                  ),
+                  // 입력 항목이 화면보다 길어지거나 키보드가 올라와도 스크롤로 접근 가능
+                  child: SingleChildScrollView(
+                    padding: _scrollPadding,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    child: _buildForm(minHeight: minFormHeight),
+                  ),
                 ),
-                // 입력 항목이 화면보다 길어지거나 키보드가 올라와도 스크롤로 접근 가능
-                child: SingleChildScrollView(
-                  padding: _scrollPadding,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  child: _buildForm(minHeight: minFormHeight),
-                ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

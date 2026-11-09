@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../common/movie_log_button.dart';
 
-/// 평점 삭제 확인 Dialog. 삭제까지 마치면 true, 취소하면 false를 돌려준다.
-/// 삭제가 실패하면 Dialog를 유지하고 Snackbar로 안내해 다시 시도할 수 있게 한다.
+/// 평점 삭제 확인 Dialog. 확인하면 true, 취소하면 false를 돌려준다.
+/// onConfirm이 있으면(단일 삭제) 삭제가 끝날 때까지 Dialog를 유지하고, 실패하면 Snackbar로
+/// 안내해 다시 시도할 수 있게 한다. 없으면(다중 삭제) 묻기만 하고 바로 닫힌다.
 class DeleteRatingDialog extends StatefulWidget {
-  const DeleteRatingDialog({super.key, required this.onConfirm});
+  const DeleteRatingDialog({
+    super.key,
+    this.title = '평점을 삭제할까요?',
+    this.onConfirm,
+  });
 
-  final Future<void> Function() onConfirm;
+  final String title;
+  final Future<void> Function()? onConfirm;
 
   @override
   State<DeleteRatingDialog> createState() => _DeleteRatingDialogState();
@@ -17,9 +23,15 @@ class _DeleteRatingDialogState extends State<DeleteRatingDialog> {
   bool _isDeleting = false;
 
   Future<void> _onConfirm() async {
+    final onConfirm = widget.onConfirm;
+    if (onConfirm == null) {
+      Navigator.pop(context, true);
+      return;
+    }
+
     setState(() => _isDeleting = true);
     try {
-      await widget.onConfirm();
+      await onConfirm();
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (error) {
@@ -50,7 +62,7 @@ class _DeleteRatingDialogState extends State<DeleteRatingDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '평점을 삭제할까요?',
+                widget.title,
                 style: textTheme.headlineMedium,
                 textAlign: TextAlign.center,
               ),

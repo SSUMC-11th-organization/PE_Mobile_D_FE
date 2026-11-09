@@ -3,9 +3,13 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/data/models/common_response.dart';
+import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/data/models/sign_up_models.dart';
 import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
+import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/common/movie_log_button.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +30,12 @@ class _FakeSignUpService extends SignUpService {
 
   @override
   Future<bool> checkEmail(String email) => _enqueue();
+
+  final signUpGate = Completer<CommonResponse<SignUpResult>>();
+
+  @override
+  Future<CommonResponse<SignUpResult>> signUp(CreateMemberRequest request) =>
+      signUpGate.future;
 }
 
 Finder _button(String label) => find.widgetWithText(MovieLogButton, label);
@@ -101,5 +111,77 @@ void main() {
     expect(_buttonAt(tester, 1).onPressed, isNull);
     expect(_buttonAt(tester, 2).onPressed, isNull);
     expect(service.pending.length, requestCount);
+  });
+
+  testWidgets('제출 중에는 뒤로가기가 막히고, 제출이 끝나면 다시 벗어날 수 있다', (tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    final service = _FakeSignUpService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) => LearningMemberSession()),
+            ChangeNotifierProvider(create: (_) => SignUpViewModel(service)),
+          ],
+          child: const SignUpScreen(),
+        ),
+      ),
+    );
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), '영화광');
+    await tester.enterText(fields.at(1), 'movie@umc.com');
+    await tester.enterText(fields.at(2), 'Password1!');
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    await tester.tap(find.byType(MovieLogButton).at(0));
+    await tester.pump();
+    service.pending.last.complete(true);
+    await tester.pump();
+    await tester.tap(find.byType(MovieLogButton).at(1));
+    await tester.pump();
+    service.pending.last.complete(true);
+    await tester.pump();
+
+    bool canPop() =>
+        tester.widget<PopScope>(find.byType(PopScope).first).canPop;
+    IconButton backButton() => tester.widget<IconButton>(
+      find.ancestor(
+        of: find.bySemanticsLabel('뒤로가기'),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(canPop(), isTrue);
+
+    await tester.tap(_button('가입하기'));
+    await tester.pump();
+    expect(canPop(), isFalse);
+    expect(backButton().onPressed, isNull);
+
+    final options = RequestOptions(path: '/v6/members');
+    service.signUpGate.completeError(
+      DioException.badResponse(
+        statusCode: 409,
+        requestOptions: options,
+        response: Response(
+          requestOptions: options,
+          statusCode: 409,
+          data: {
+            'isSuccess': false,
+            'code': 'COMMON409',
+            'message': '이미 사용 중인 이메일입니다.',
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(canPop(), isTrue);
+    expect(backButton().onPressed, isNotNull);
+    expect(find.text('이미 사용 중인 이메일입니다.'), findsOneWidget);
   });
 }

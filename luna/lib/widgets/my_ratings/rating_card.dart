@@ -125,6 +125,74 @@ class RatingCard extends StatelessWidget {
   }
 }
 
+/// 다중 선택 모드의 카드. 수정·삭제 버튼 대신 CheckBox를 보여주고, 카드 전체를 탭할 수 있다.
+class SelectableRatingCard extends StatelessWidget {
+  const SelectableRatingCard({
+    super.key,
+    required this.entry,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
+  final RatingWithMovie entry;
+  final bool isSelected;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final rating = entry.rating;
+    final comment = rating.comment;
+    final borderRadius = BorderRadius.circular(16);
+
+    return Material(
+      color: colorScheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colorScheme.primaryContainer, width: 2),
+        borderRadius: borderRadius,
+      ),
+      child: InkWell(
+        onTap: onToggle,
+        borderRadius: borderRadius,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 20, 20, 20),
+          child: Row(
+            children: [
+              Checkbox(value: isSelected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry.movie?.title ?? '영화 #${rating.movieId}'} · 별점 ${rating.score}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (comment != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        comment,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 카드 오른쪽의 작은 수정·삭제 버튼.
 class _CardActionButton extends StatelessWidget {
   const _CardActionButton({
