@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/rating_with_movie.dart';
+import '../../theme/app_colors.dart';
 import '../common/tmdb_poster_image.dart';
 
 /// 평점 하나와 TMDB 영화 정보를 보여주는 카드.
 /// 영화 정보를 찾지 못하면 제목·포스터만 대신 표시하고 평점 기록은 그대로 보여준다.
 class RatingCard extends StatelessWidget {
-  const RatingCard({super.key, required this.entry});
+  const RatingCard({
+    super.key,
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final RatingWithMovie entry;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   static const _posterWidth = 96.0;
   static const _posterHeight = 128.0;
@@ -93,8 +101,57 @@ class RatingCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 12),
+          Column(
+            children: [
+              _CardActionButton(
+                label: '수정',
+                backgroundColor: AppColors.primary100,
+                foregroundColor: AppColors.primary500,
+                onPressed: onEdit,
+              ),
+              const SizedBox(height: 8),
+              _CardActionButton(
+                label: '삭제',
+                backgroundColor: AppColors.error100,
+                foregroundColor: AppColors.error500,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// 카드 오른쪽의 작은 수정·삭제 버튼.
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        minimumSize: const Size(60, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(label),
     );
   }
 }

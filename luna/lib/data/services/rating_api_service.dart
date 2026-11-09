@@ -32,12 +32,47 @@ class RatingApiService {
       throw StateError('예상하지 못한 등록 응답: ${response.statusCode}');
     }
   }
+
+  /// comment를 생략하면 기존 후기가 null로 덮이므로 항상 명시적으로 보낸다.
+  /// (null을 보내면 후기 삭제, 기존 문자열을 보내면 유지)
+  Future<void> updateRating({
+    required int memberId,
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    await _dio.patch(
+      '/v6/members/$memberId/ratings/$ratingId',
+      data: {'score': score, 'comment': comment},
+    );
+  }
+
+  /// 성공은 204라 본문이 없으므로 response.data를 파싱하지 않는다.
+  Future<void> deleteRating({
+    required int memberId,
+    required int ratingId,
+  }) async {
+    final response = await _dio.delete(
+      '/v6/members/$memberId/ratings/$ratingId',
+    );
+    if (response.statusCode != 204) {
+      throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
+    }
+  }
 }
 
 /// 같은 COMMON404도 API마다 뜻이 달라 code로 문구를 만들지 않고 서버 message를 쓴다.
 String writeErrorMessage(DioException error) {
   return readCommonErrorMessage(error.response?.data) ??
       '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+}
+
+/// 403·404는 화면의 목록이 서버 상태와 어긋났다는 뜻이므로 다시 조회해 맞춘다.
+/// 400·409는 값을 고쳐 다시 시도하면 되는 오류라 다시 조회하지 않는다.
+bool shouldRefreshAfterRatingError(DioException error) {
+  final data = error.response?.data;
+  final code = data is Map<String, dynamic> ? data['code'] : null;
+  return code == 'COMMON403' || code == 'COMMON404';
 }
 
 /// 상태 코드별로 사용자에게 보여줄 문구. 400·404·그 밖의 실패를 하나로 뭉치지 않는다.

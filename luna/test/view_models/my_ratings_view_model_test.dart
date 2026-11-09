@@ -24,6 +24,47 @@ class _FakeRatingApiService extends RatingApiService {
     if (error != null) throw error!;
     return currentRatings;
   }
+
+  Object? writeError;
+  final updates = <(int, int, int, String?)>[];
+  final deletes = <(int, int)>[];
+
+  @override
+  Future<void> updateRating({
+    required int memberId,
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    updates.add((memberId, ratingId, score, comment));
+    if (writeError != null) throw writeError!;
+  }
+
+  @override
+  Future<void> deleteRating({
+    required int memberId,
+    required int ratingId,
+  }) async {
+    deletes.add((memberId, ratingId));
+    if (writeError != null) throw writeError!;
+  }
+}
+
+DioException _writeError(int statusCode, String message) {
+  final options = RequestOptions(path: '/v6/members/1/ratings/1');
+  return DioException.badResponse(
+    statusCode: statusCode,
+    requestOptions: options,
+    response: Response(
+      requestOptions: options,
+      statusCode: statusCode,
+      data: {
+        'isSuccess': false,
+        'code': 'COMMON$statusCode',
+        'message': message,
+      },
+    ),
+  );
 }
 
 /// fetchMovieDetail만 바꿔 실제 findMovieById(404 → null)를 그대로 사용한다.
@@ -71,11 +112,7 @@ DioException _networkError() => DioException.connectionError(
 void main() {
   test('memberId 1을 조회하고 각 평점에 TMDB 영화 정보를 묶는다', () async {
     final service = _FakeRatingApiService(ratings: [_rating(1, 550)]);
-    final viewModel = MyRatingsViewModel(
-      service,
-      _FakeTmdbMovieService(),
-      1,
-    );
+    final viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 1);
     expect(viewModel.status, MyRatingsLoadStatus.idle);
 
     final future = viewModel.load();
@@ -176,5 +213,87 @@ void main() {
     await first;
     expect(viewModel.status, MyRatingsLoadStatus.empty);
     expect(viewModel.ratings, isEmpty);
+  });
+
+  group('평점 수정·삭제', () {
+    late _FakeRatingApiService service;
+    late MyRatingsViewModel viewModel;
+
+    setUp(() {
+      service = _FakeRatingApiService(ratings: [_rating(1, 550)]);
+      viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 7);
+    });
+
+    Matcher throwsMessage(String message) => throwsA(
+      isA<StateError>().having((error) => error.message, 'message', message),
+    );
+
+    test('수정에 성공하면 null 코멘트까지 그대로 보내고 목록을 다시 조회한다', () async {
+      await viewModel.updateRating(ratingId: 1, score: 3, comment: null);
+
+      expect(service.updates, [(7, 1, 3, null)]);
+      expect(service.requestedIds, [7]);
+      expect(viewModel.status, MyRatingsLoadStatus.success);
+    });
+
+    test('마지막 항목을 삭제하면 재조회 결과로 Empty가 된다', () async {
+      service.ratings = const [];
+
+      await viewModel.deleteRating(1);
+
+      expect(service.deletes, [(7, 1)]);
+      expect(viewModel.status, MyRatingsLoadStatus.empty);
+    });
+
+    test('쓰기 성공 뒤 GET만 실패하면 던지지 않고 재조회 안내를 남기며, GET만 재시도한다', () async {
+      service.error = _statusError(500);
+
+      await viewModel.deleteRating(1);
+
+      expect(viewModel.status, MyRatingsLoadStatus.error);
+      expect(viewModel.refreshWarning, contains('저장은 완료됐지만'));
+
+      service.error = null;
+      await viewModel.load();
+
+      expect(service.deletes.length, 1); // DELETE는 반복하지 않는다
+      expect(viewModel.status, MyRatingsLoadStatus.success);
+      expect(viewModel.refreshWarning, isNull);
+    });
+
+    test('400은 서버 문구를 던지고 다시 조회하지 않는다', () async {
+      service.writeError = _writeError(400, '별점은 5점 이하여야 합니다.');
+
+      await expectLater(
+        viewModel.updateRating(ratingId: 1, score: 3),
+        throwsMessage('별점은 5점 이하여야 합니다.'),
+      );
+
+      expect(service.requestedIds, isEmpty);
+    });
+
+    test('403·404는 서로 다른 서버 문구를 던지고 목록을 다시 조회한다', () async {
+      service.writeError = _writeError(403, '본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.');
+      await expectLater(
+        viewModel.deleteRating(1),
+        throwsMessage('본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.'),
+      );
+      expect(service.requestedIds.length, 1);
+
+      service.writeError = _writeError(404, '존재하지 않는 평점입니다.');
+      await expectLater(
+        viewModel.deleteRating(1),
+        throwsMessage('존재하지 않는 평점입니다.'),
+      );
+      expect(service.requestedIds.length, 2);
+    });
+
+    test('화면을 떠난 뒤 끝난 쓰기는 목록을 다시 조회하지 않는다', () async {
+      viewModel.dispose();
+
+      await viewModel.deleteRating(1);
+
+      expect(service.requestedIds, isEmpty);
+    });
   });
 }

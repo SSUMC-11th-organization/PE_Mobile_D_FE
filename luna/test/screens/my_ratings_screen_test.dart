@@ -8,19 +8,41 @@ import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/screens/my_ratings_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
+import 'package:movielog/widgets/common/movie_log_button.dart';
 import 'package:movielog/widgets/my_ratings/my_ratings_states.dart';
 import 'package:provider/provider.dart';
 
 class _FakeRatingApiService extends RatingApiService {
   _FakeRatingApiService({this.ratings = const [], this.error}) : super(Dio());
 
-  final List<RatingDto> ratings;
-  final Exception? error;
+  List<RatingDto> ratings;
+  Exception? error;
+  final updates = <(int, int, String?)>[];
+  final deletes = <int>[];
 
   @override
   Future<List<RatingDto>> fetchMyRatings(int memberId) async {
     if (error != null) throw error!;
     return ratings;
+  }
+
+  @override
+  Future<void> updateRating({
+    required int memberId,
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    updates.add((ratingId, score, comment));
+  }
+
+  @override
+  Future<void> deleteRating({
+    required int memberId,
+    required int ratingId,
+  }) async {
+    deletes.add(ratingId);
+    ratings = ratings.where((item) => item.ratingId != ratingId).toList();
   }
 }
 
@@ -121,5 +143,79 @@ void main() {
 
     expect(find.text('존재하지 않는 회원입니다.'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
+  });
+
+  group('평점 수정·삭제', () {
+    Future<_FakeRatingApiService> pumpLoaded(WidgetTester tester) async {
+      // 디자인 기준 너비에서 카드의 버튼이 넘치지 않는지도 함께 확인한다
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final service = _FakeRatingApiService(ratings: [_ratings.first]);
+      final viewModel = await _pumpScreen(tester, service);
+      await viewModel.load();
+      await tester.pump();
+      return service;
+    }
+
+    testWidgets('수정 Dialog는 기존 별점·코멘트로 시작하고 저장 값을 보낸다', (tester) async {
+      final service = await pumpLoaded(tester);
+
+      await tester.tap(find.text('수정'));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, '최고의 영화!'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '다시 봐도 좋아요');
+      await tester.tap(find.text('확인'));
+      await tester.pumpAndSettle();
+
+      expect(service.updates, [(1, 5, '다시 봐도 좋아요')]);
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('삭제 확인에서 취소하면 삭제 요청을 보내지 않는다', (tester) async {
+      final service = await pumpLoaded(tester);
+
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      expect(find.text('평점을 삭제할까요?'), findsOneWidget);
+
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+
+      expect(service.deletes, isEmpty);
+    });
+
+    testWidgets('마지막 평점을 삭제하면 Empty를 보여준다', (tester) async {
+      final service = await pumpLoaded(tester);
+
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MovieLogButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      expect(service.deletes, [1]);
+      expect(find.text('평점을 삭제할까요?'), findsNothing);
+      expect(find.text(MyRatingsEmpty.message), findsOneWidget);
+    });
+
+    testWidgets('쓰기 성공 뒤 재조회만 실패하면 저장 완료 안내와 다시 시도를 보여준다', (tester) async {
+      final service = await pumpLoaded(tester);
+
+      await tester.tap(find.text('삭제'));
+      await tester.pumpAndSettle();
+      service.error = DioException.connectionError(
+        requestOptions: RequestOptions(path: '/v6/members/1/ratings'),
+        reason: 'offline',
+      );
+      await tester.tap(find.widgetWithText(MovieLogButton, '삭제'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('저장은 완료됐지만'), findsOneWidget);
+      expect(find.text('다시 시도'), findsOneWidget);
+      expect(service.deletes.length, 1);
+    });
   });
 }

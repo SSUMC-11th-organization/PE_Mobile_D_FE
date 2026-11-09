@@ -130,7 +130,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final memberId = viewModel.createdMemberId;
     if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
       session.setMemberId(memberId);
-      messenger.showSnackBar(const SnackBar(content: Text('회원가입이 완료되었습니다.')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId: $memberId)')),
+      );
       // 회원가입 화면을 남기지 않고 영화 목록으로 이동 (뒤로가기 불가)
       context.go('/movies');
       return;
