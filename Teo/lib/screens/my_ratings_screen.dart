@@ -6,6 +6,110 @@ import '../data/models/rating_with_movie.dart';
 import '../view_models/my_ratings_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/tmdb_poster_image.dart';
+import '../data/models/rating_dto.dart';
+import '../widgets/rating_dialog.dart';
+import '../widgets/movielog_button.dart';
+
+Future<void> onEditPressed(BuildContext context, RatingDto rating) async {
+  final saved = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => RatingDialog(
+      initialScore: rating.score,
+      initialComment: rating.comment,
+      onSubmit: (score, comment) {
+        return context.read<MyRatingsViewModel>().updateRating(
+          ratingId: rating.ratingId,
+          score: score,
+          comment: comment,
+        );
+      },
+    ),
+  );
+
+  if (!context.mounted || saved != true) {
+    return;
+  }
+}
+
+Future<void> onDeletePressed(BuildContext context, RatingDto rating) async {
+  await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _DeleteRatingDialog(
+      onConfirm: () {
+        return context.read<MyRatingsViewModel>().deleteRating(rating.ratingId);
+      },
+    ),
+  );
+}
+
+class _DeleteRatingDialog extends StatefulWidget {
+  const _DeleteRatingDialog({required this.onConfirm});
+
+  final Future<void> Function() onConfirm;
+
+  @override
+  State<_DeleteRatingDialog> createState() => _DeleteRatingDialogState();
+}
+
+class _DeleteRatingDialogState extends State<_DeleteRatingDialog> {
+  bool _isDeleting = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDeleting,
+      child: AlertDialog(
+        title: const Text('평점을 삭제할까요?'),
+        content: const Text('삭제한 평점은 복구할 수 없습니다.'),
+        actions: [
+          MovieLogButton(
+            label: '취소',
+            onPressed: _isDeleting
+                ? null
+                : () {
+                    Navigator.pop(context, false);
+                  },
+          ),
+          MovieLogButton(
+            label: '삭제',
+            isLoading: _isDeleting,
+            onPressed: _isDeleting ? null : _onConfirm,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onConfirm() async {
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      await widget.onConfirm();
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isDeleting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.')),
+      );
+    }
+  }
+}
 
 class MyRatingsScreen extends StatelessWidget {
   const MyRatingsScreen({super.key});
@@ -30,7 +134,10 @@ class MyRatingsScreen extends StatelessWidget {
 
             case MyRatingsLoadStatus.error:
               return _ErrorView(
-                message: viewModel.message ?? '평점을 불러오지 못했습니다.',
+                message:
+                    viewModel.refreshWarning ??
+                    viewModel.message ??
+                    '평점을 불러오지 못했습니다.',
                 onRetry: viewModel.load,
               );
 
@@ -138,6 +245,26 @@ class _RatingCard extends StatelessWidget {
                   Text(
                     createdDate,
                     style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          onEditPressed(context, rating);
+                        },
+                        child: const Text('수정'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          onDeletePressed(context, rating);
+                        },
+                        child: const Text('삭제'),
+                      ),
+                    ],
                   ),
                 ],
               ),

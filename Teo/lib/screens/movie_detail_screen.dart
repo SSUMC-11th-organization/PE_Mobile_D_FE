@@ -3,8 +3,13 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/models/tmdb_movie_dto.dart';
-import '../widgets/movie_rating_input.dart';
 import '../widgets/tmdb_poster_image.dart';
+
+import 'package:provider/provider.dart';
+
+import '../view_models/movie_detail_view_model.dart';
+import '../view_models/sign_up_view_model.dart';
+import '../widgets/rating_dialog.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key, required this.movie});
@@ -105,12 +110,38 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             const SizedBox(height: 24),
 
             ElevatedButton(
-              onPressed: () {
-                showDialog(
+              onPressed: () async {
+                final saved = await showDialog<bool>(
                   context: context,
-                  builder: (context) {
-                    return MovieRatingInput(movieId: movie.id);
-                  },
+                  barrierDismissible: false,
+                  builder: (_) => RatingDialog(
+                    onSubmit: (score, comment) async {
+                      final viewModel = context.read<MovieDetailViewModel>();
+
+                      await viewModel.createRating(
+                        score: score,
+                        comment: comment,
+                      );
+
+                      if (viewModel.submitStatus != SubmitStatus.success) {
+                        throw StateError(
+                          viewModel.submitMessage ?? '저장에 실패했습니다.',
+                        );
+                      }
+                    },
+                  ),
+                );
+
+                if (!context.mounted || saved != true) {
+                  return;
+                }
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      '평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.',
+                    ),
+                  ),
                 );
               },
               child: const Text('평점 남기기'),
