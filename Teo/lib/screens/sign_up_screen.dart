@@ -7,6 +7,8 @@ import '../theme/app_text_styles.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/movielog_button.dart';
+import '../data/models/create_member_request.dart';
+import '../view_models/learning_member_session.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -41,8 +43,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return '닉네임을 입력해주세요.';
     }
 
-    if (nickname.length < 2) {
-      return '닉네임은 2자 이상이어야 합니다.';
+    if (nickname.length < 2 || nickname.length > 12) {
+      return '닉네임은 2~12자여야 합니다.';
     }
 
     return null;
@@ -69,22 +71,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return '비밀번호를 입력해주세요.';
     }
 
-    if (password.length < 8) {
-      return '비밀번호는 8자 이상이어야 합니다.';
+    final isValid = RegExp(
+      r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$',
+    ).hasMatch(password);
+
+    if (!isValid) {
+      return '비밀번호는 대문자/소문자/숫자/특수문자를 포함한 8자 이상이어야 합니다.';
     }
 
     return null;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
 
     if (!isValid) {
       return;
     }
 
+    final viewModel = context.read<SignUpViewModel>();
+
+    if (viewModel.nicknameCheckStatus != CheckStatus.available ||
+        viewModel.emailCheckStatus != CheckStatus.available) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
-    context.go('/home');
+
+    await viewModel.submit(
+      CreateMemberRequest(
+        email: _emailController.text,
+        password: _passwordController.text,
+        nickname: _nicknameController.text,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (viewModel.submitStatus == SubmitStatus.success &&
+        viewModel.createdMemberId != null) {
+      context.read<LearningMemberSession>().setMemberId(
+        viewModel.createdMemberId!,
+      );
+
+      context.go('/movies');
+      return;
+    }
+
+    if (viewModel.snackbarMessage != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(viewModel.snackbarMessage!)));
+    }
   }
 
   @override
@@ -101,6 +140,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final viewModel = context.watch<SignUpViewModel>();
+
+    final canSubmit =
+        _canSubmit &&
+        viewModel.nicknameCheckStatus == CheckStatus.available &&
+        viewModel.emailCheckStatus == CheckStatus.available &&
+        viewModel.submitStatus != SubmitStatus.submitting;
     return Scaffold(
       appBar: CommonAppBar(title: '회원가입', centerTitle: true),
       body: SafeArea(
@@ -273,12 +319,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           obscureText: true,
                           textInputAction: TextInputAction.done,
                           autovalidateMode: AutovalidateMode.onUserInteraction,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: '비밀번호를 입력해주세요',
-                            border: OutlineInputBorder(),
+                            border: const OutlineInputBorder(),
+                            errorText: viewModel.passwordErrorText,
                           ),
                           validator: _validatePassword,
                           onChanged: (_) {
+                            viewModel.onPasswordChanged();
                             setState(() {});
                           },
                           onFieldSubmitted: (_) {
@@ -290,7 +338,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                         TermsAndSubmit(
                           agreedToTerms: _agreedToTerms,
-                          canSubmit: _canSubmit,
+                          canSubmit: canSubmit,
                           onTermsChanged: (value) {
                             setState(() {
                               _agreedToTerms = value ?? false;
