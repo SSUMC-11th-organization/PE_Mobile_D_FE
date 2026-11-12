@@ -70,3 +70,4 @@ app.*.map.json
 **/ios/**/Icon?
 **/ios/**/profile
 **/ios/**/xcuserdata
+.env
