@@ -94,7 +94,7 @@ class HomeHeroCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   FilledButton.icon(
-                    onPressed: () => context.push('/home/movies/${movie.id}'),
+                    onPressed: () => context.push('/home/movies/${movie.id}', extra: movie),
                     icon: const AppSvgIcon(
                       'assets/icons/info.svg',
                       size: 20,

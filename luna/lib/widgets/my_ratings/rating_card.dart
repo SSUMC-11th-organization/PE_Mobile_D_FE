@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/rating_with_movie.dart';
+import '../../theme/app_colors.dart';
 import '../common/tmdb_poster_image.dart';
 
 /// 평점 하나와 TMDB 영화 정보를 보여주는 카드.
 /// 영화 정보를 찾지 못하면 제목·포스터만 대신 표시하고 평점 기록은 그대로 보여준다.
 class RatingCard extends StatelessWidget {
-  const RatingCard({super.key, required this.entry});
+  const RatingCard({
+    super.key,
+    required this.entry,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final RatingWithMovie entry;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   static const _posterWidth = 96.0;
   static const _posterHeight = 128.0;
@@ -93,8 +101,125 @@ class RatingCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 12),
+          Column(
+            children: [
+              _CardActionButton(
+                label: '수정',
+                backgroundColor: AppColors.primary100,
+                foregroundColor: AppColors.primary500,
+                onPressed: onEdit,
+              ),
+              const SizedBox(height: 8),
+              _CardActionButton(
+                label: '삭제',
+                backgroundColor: AppColors.error100,
+                foregroundColor: AppColors.error500,
+                onPressed: onDelete,
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// 다중 선택 모드의 카드. 수정·삭제 버튼 대신 CheckBox를 보여주고, 카드 전체를 탭할 수 있다.
+class SelectableRatingCard extends StatelessWidget {
+  const SelectableRatingCard({
+    super.key,
+    required this.entry,
+    required this.isSelected,
+    required this.onToggle,
+  });
+
+  final RatingWithMovie entry;
+  final bool isSelected;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final rating = entry.rating;
+    final comment = rating.comment;
+    final borderRadius = BorderRadius.circular(16);
+
+    return Material(
+      color: colorScheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colorScheme.primaryContainer, width: 2),
+        borderRadius: borderRadius,
+      ),
+      child: InkWell(
+        onTap: onToggle,
+        borderRadius: borderRadius,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 20, 20, 20),
+          child: Row(
+            children: [
+              Checkbox(value: isSelected, onChanged: (_) => onToggle()),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry.movie?.title ?? '영화 #${rating.movieId}'} · 별점 ${rating.score}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (comment != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        comment,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 카드 오른쪽의 작은 수정·삭제 버튼.
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.onPressed,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        minimumSize: const Size(60, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: Text(label),
     );
   }
 }

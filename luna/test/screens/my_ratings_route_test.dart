@@ -9,6 +9,7 @@ import 'package:movielog/router/app_router.dart';
 import 'package:movielog/screens/my_ratings_screen.dart';
 import 'package:movielog/screens/profile_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
+import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:provider/provider.dart';
 
 class _FakeRatingApiService extends RatingApiService {
@@ -38,6 +39,9 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          ChangeNotifierProvider<LearningMemberSession>(
+            create: (_) => LearningMemberSession()..setMemberId(1),
+          ),
           Provider<TmdbMovieService>.value(value: _FakeTmdbMovieService()),
           Provider<RatingApiService>.value(value: ratingService),
         ],
@@ -67,5 +71,30 @@ void main() {
     expect(find.byType(MyRatingsScreen), findsNothing);
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('학습용 회원 ID가 없으면 평점을 조회하지 않고 회원가입을 안내한다', (tester) async {
+    final ratingService = _FakeRatingApiService();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<LearningMemberSession>(
+            create: (_) => LearningMemberSession(),
+          ),
+          Provider<TmdbMovieService>.value(value: _FakeTmdbMovieService()),
+          Provider<RatingApiService>.value(value: ratingService),
+        ],
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: AppRouter.router,
+        ),
+      ),
+    );
+    AppRouter.router.go('/my/ratings');
+    await tester.pumpAndSettle();
+
+    expect(find.text('학습용 회원가입이 필요합니다.'), findsOneWidget);
+    expect(find.byType(MyRatingsScreen), findsNothing);
+    expect(ratingService.requestedIds, isEmpty);
   });
 }

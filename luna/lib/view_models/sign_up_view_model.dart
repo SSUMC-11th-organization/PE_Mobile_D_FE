@@ -1,16 +1,18 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-import '../data/services/member_check_service.dart';
+import '../data/models/create_member_request.dart';
+import '../data/services/sign_up_service.dart';
+import 'submit_status.dart';
 
 enum CheckStatus { idle, checking, available, duplicated, error }
 
-/// 회원가입 화면의 닉네임·이메일 중복 확인 상태.
-/// 형식 검증은 화면의 validator가, 서버 중복 여부는 이 ViewModel이 담당한다.
+/// 회원가입 화면의 닉네임·이메일 중복 확인과 제출 상태.
+/// 형식 검증은 화면의 validator가, 서버 결과는 이 ViewModel이 담당한다.
 class SignUpViewModel extends ChangeNotifier {
   SignUpViewModel(this._service);
 
-  final MemberCheckService _service;
+  final SignUpService _service;
 
   // 두 입력란의 결과가 서로 영향을 주지 않도록 필드마다 상태를 따로 둔다
   late final _nickname = _DuplicateCheck(
@@ -21,6 +23,11 @@ class SignUpViewModel extends ChangeNotifier {
     label: '이메일',
     request: _service.checkEmail,
   );
+
+  SubmitStatus submitStatus = SubmitStatus.idle;
+  int? createdMemberId; // 가입 성공 응답에서 읽은 실제 ID
+  String? passwordErrorText; // 비밀번호 입력칸에 붙는 서버 오류
+  String? snackbarMessage; // 어느 입력칸에도 붙일 수 없는 서버 오류
 
   bool _disposed = false;
 
@@ -40,6 +47,45 @@ class SignUpViewModel extends ChangeNotifier {
   Future<void> checkNickname(String value) => _check(_nickname, value);
   Future<void> checkEmail(String value) => _check(_email, value);
 
+  void onPasswordChanged() {
+    if (passwordErrorText == null) return;
+    passwordErrorText = null;
+    notifyListeners();
+  }
+
+  Future<void> submit(CreateMemberRequest request) async {
+    if (submitStatus == SubmitStatus.submitting) return;
+    submitStatus = SubmitStatus.submitting;
+    createdMemberId = null;
+    passwordErrorText = null;
+    snackbarMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _service.signUp(request);
+      final id = response.result?.memberId;
+      if (id == null) throw StateError('회원가입 결과에 memberId가 없습니다.');
+      createdMemberId = id;
+      submitStatus = SubmitStatus.success;
+    } on DioException catch (error) {
+      submitStatus = SubmitStatus.error;
+      final message = writeSignUpErrorMessage(error);
+      // 400은 비밀번호 외의 입력 오류일 수도 있어 문구로 확인된 경우만 입력칸에 붙인다
+      if (error.response?.statusCode == 400 && message.contains('비밀번호')) {
+        passwordErrorText = message;
+      } else {
+        snackbarMessage = message;
+      }
+    } catch (error) {
+      // 응답 모양이 예상과 달라도 제출 중에 멈추지 않도록 error로 처리
+      debugPrint('회원가입 응답 처리 실패: ${error.runtimeType}');
+      submitStatus = SubmitStatus.error;
+      snackbarMessage = '가입 결과를 확인하지 못했습니다. 새 요청 전에 서버 상태를 확인해 주세요.';
+    }
+
+    if (!_disposed) notifyListeners();
+  }
+
   // 통신 중이거나, 중복으로 확인된 값을 바꾸기 전까지는 다시 확인할 수 없다
   bool _canCheck(_DuplicateCheck field) =>
       field.current.isNotEmpty &&
@@ -53,6 +99,9 @@ class SignUpViewModel extends ChangeNotifier {
 
     field.current = trimmed;
     field.version++; // 기다리던 이전 요청의 응답을 무효화
+    // 이전 제출의 409 등 서버 오류도 바뀐 입력에는 더 이상 맞지 않는다
+    snackbarMessage = null;
+    if (submitStatus == SubmitStatus.error) submitStatus = SubmitStatus.idle;
     // 마지막으로 중복이었던 값을 다시 입력하면 서버에 묻지 않고 즉시 중복 상태로 되돌린다
     // (서버 상태가 바뀌었을 수 있으므로 최종 기준은 회원가입 POST의 409)
     field.status = trimmed == field.duplicated

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../data/models/tmdb_movie_detail_dto.dart';
 import '../view_models/movie_detail_view_model.dart';
+import '../view_models/submit_status.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/tmdb_poster_image.dart';
@@ -21,9 +22,8 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  // 즐겨찾기와 내 평점은 API 없이 이 화면 안에서만 유지되는 Mock 상태
+  // 즐겨찾기는 API 없이 이 화면 안에서만 유지되는 Mock 상태
   bool _isFavorite = false;
-  double? _myRating;
 
   // 상세 화면이 탭(MainScreen) Scaffold 안에 있으므로, Snackbar가 NavigationBar 위
   // 하단 버튼을 가리지 않도록 이 화면 전용 ScaffoldMessenger를 둠
@@ -34,24 +34,25 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     _showSnackBar(_isFavorite ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 삭제했어요.');
   }
 
-  Future<void> _openRatingDialog(TmdbMovieDetailDto movie) async {
-    final rating = await showDialog<double>(
+  Future<void> _openRatingDialog() async {
+    final viewModel = context.read<MovieDetailViewModel>();
+    final saved = await showDialog<bool>(
       context: context,
-      // 목록 index가 아니라 TMDB 영화 ID를 전달한다
-      builder: (context) =>
-          RatingDialog(movieId: movie.id, initialRating: _myRating),
+      barrierDismissible: false, // 저장 중 바깥 탭으로 닫히는 것도 막는다
+      builder: (_) => RatingDialog(
+        onSubmit: (score, comment) async {
+          await viewModel.createRating(score: score, comment: comment);
+          if (viewModel.submitStatus != SubmitStatus.success) {
+            final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
+            _showSnackBar(message);
+            throw StateError(message); // Dialog를 유지해 입력을 보존한다
+          }
+        },
+      ),
     );
-    // 확인 없이 바깥을 눌러 닫으면 null → 기존 평점 유지
-    if (rating == null || !mounted) return;
+    if (!mounted || saved != true) return;
 
-    // 다시 선택하기로 초기화한 뒤 확인하면 0 → 내 평점 삭제
-    if (rating == 0) {
-      setState(() => _myRating = null);
-      _showSnackBar('평점을 초기화했어요.');
-      return;
-    }
-    setState(() => _myRating = rating);
-    _showSnackBar('평점 $rating점을 남겼어요.');
+    _showSnackBar('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.');
   }
 
   void _showSnackBar(String message) {
@@ -104,9 +105,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         bottomNavigationBar: isLoaded
             ? MovieDetailActions(
                 isFavorite: _isFavorite,
-                myRating: _myRating,
+                canRate: viewModel.memberId != null,
                 onFavoritePressed: _toggleFavorite,
-                onRatePressed: () => _openRatingDialog(movie!),
+                onRatePressed: _openRatingDialog,
               )
             : null,
       ),

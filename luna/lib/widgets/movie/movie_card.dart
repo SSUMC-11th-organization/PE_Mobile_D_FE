@@ -24,7 +24,7 @@ class MovieCard extends StatelessWidget {
     return GestureDetector(
       // 포스터 사이 빈 공간을 눌러도 카드 Tap으로 처리
       behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/movies/${movie.id}'),
+      onTap: () => context.push('/movies/${movie.id}', extra: movie),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

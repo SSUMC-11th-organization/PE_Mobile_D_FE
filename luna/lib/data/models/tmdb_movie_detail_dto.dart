@@ -28,6 +28,22 @@ class TmdbMovieDetailDto {
 
   int? get releaseYear => parseReleaseYear(releaseDate);
 
+  /// 목록에서 받은 영화로 상세 조회가 끝나기 전 화면을 먼저 그린다.
+  /// 목록 응답에 없는 장르 이름·상영시간은 상세 조회 뒤에 채워진다.
+  factory TmdbMovieDetailDto.fromListItem(TmdbMovieDto movie) {
+    return TmdbMovieDetailDto(
+      id: movie.id,
+      title: movie.title,
+      overview: movie.overview,
+      posterPath: movie.posterPath,
+      releaseDate: movie.releaseDate,
+      genres: const [],
+      runtime: null,
+      voteAverage: movie.voteAverage,
+      voteCount: 0,
+    );
+  }
+
   factory TmdbMovieDetailDto.fromJson(Map<String, dynamic> json) {
     return TmdbMovieDetailDto(
       id: (json['id'] as num).toInt(),

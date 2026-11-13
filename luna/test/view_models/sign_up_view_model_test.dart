@@ -2,12 +2,16 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:movielog/data/services/member_check_service.dart';
+import 'package:movielog/data/models/common_response.dart';
+import 'package:movielog/data/models/create_member_request.dart';
+import 'package:movielog/data/models/sign_up_models.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
+import 'package:movielog/view_models/submit_status.dart';
 
 /// 요청마다 Completer를 남겨 응답 시점을 테스트에서 직접 정한다.
-class _FakeMemberCheckService extends MemberCheckService {
-  _FakeMemberCheckService() : super(Dio());
+class _FakeSignUpService extends SignUpService {
+  _FakeSignUpService() : super(Dio());
 
   final nicknameRequests = <String>[];
   final emailRequests = <String>[];
@@ -26,19 +30,67 @@ class _FakeMemberCheckService extends MemberCheckService {
 
   @override
   Future<bool> checkEmail(String email) => _enqueue(emailRequests, email);
+
+  Object? signUpError;
+  int? signUpMemberId = 7;
+  var signUpCalls = 0;
+
+  @override
+  Future<CommonResponse<SignUpResult>> signUp(
+    CreateMemberRequest request,
+  ) async {
+    signUpCalls++;
+    if (signUpError != null) throw signUpError!;
+    final id = signUpMemberId;
+    return CommonResponse(
+      isSuccess: true,
+      code: 'COMMON201',
+      message: '성공',
+      result: id == null
+          ? null
+          : SignUpResult(
+              memberId: id,
+              email: request.email,
+              nickname: request.nickname,
+            ),
+    );
+  }
+}
+
+const _request = CreateMemberRequest(
+  email: 'a@umc.com',
+  password: 'Password1!',
+  nickname: '루나',
+);
+
+DioException _signUpError(int statusCode, String message) {
+  final options = RequestOptions(path: '/v6/members');
+  return DioException.badResponse(
+    statusCode: statusCode,
+    requestOptions: options,
+    response: Response(
+      requestOptions: options,
+      statusCode: statusCode,
+      data: {
+        'isSuccess': false,
+        'code': 'COMMON$statusCode',
+        'message': message,
+      },
+    ),
+  );
 }
 
 DioException _networkError() => DioException.connectionError(
-  requestOptions: RequestOptions(path: '/v5/members/nickname/a'),
+  requestOptions: RequestOptions(path: '/v6/members/nickname/a'),
   reason: 'offline',
 );
 
 void main() {
-  late _FakeMemberCheckService service;
+  late _FakeSignUpService service;
   late SignUpViewModel viewModel;
 
   setUp(() {
-    service = _FakeMemberCheckService();
+    service = _FakeSignUpService();
     viewModel = SignUpViewModel(service);
   });
 
@@ -195,5 +247,66 @@ void main() {
 
     service.pending.single.complete(true);
     await future; // dispose 후 notifyListeners를 호출하면 예외가 발생한다
+  });
+
+  group('회원가입 제출', () {
+    test('성공하면 result의 memberId를 보관한다', () async {
+      await viewModel.submit(_request);
+
+      expect(viewModel.submitStatus, SubmitStatus.success);
+      expect(viewModel.createdMemberId, 7);
+    });
+
+    test('result에 memberId가 없으면 가입 완료로 처리하지 않는다', () async {
+      service.signUpMemberId = null;
+
+      await viewModel.submit(_request);
+
+      expect(viewModel.submitStatus, SubmitStatus.error);
+      expect(viewModel.createdMemberId, isNull);
+      expect(viewModel.snackbarMessage, isNotNull);
+    });
+
+    test('비밀번호 형식 400은 입력칸 오류로, 입력을 바꾸면 사라진다', () async {
+      service.signUpError = _signUpError(400, '비밀번호는 8자 이상이어야 합니다.');
+
+      await viewModel.submit(_request);
+
+      expect(viewModel.passwordErrorText, '비밀번호는 8자 이상이어야 합니다.');
+      expect(viewModel.snackbarMessage, isNull);
+
+      viewModel.onPasswordChanged();
+      expect(viewModel.passwordErrorText, isNull);
+    });
+
+    test('다른 400과 409는 Snackbar 문구로 담는다', () async {
+      service.signUpError = _signUpError(400, '잘못된 요청입니다.');
+      await viewModel.submit(_request);
+      expect(viewModel.passwordErrorText, isNull);
+      expect(viewModel.snackbarMessage, '잘못된 요청입니다.');
+
+      service.signUpError = _signUpError(409, '이미 사용 중인 이메일입니다.');
+      await viewModel.submit(_request);
+      expect(viewModel.passwordErrorText, isNull);
+      expect(viewModel.snackbarMessage, '이미 사용 중인 이메일입니다.');
+    });
+
+    test('닉네임·이메일을 바꾸면 이전 서버 오류를 무효화한다', () async {
+      service.signUpError = _signUpError(409, '이미 사용 중인 이메일입니다.');
+      await viewModel.submit(_request);
+
+      viewModel.onEmailChanged('new@umc.com');
+
+      expect(viewModel.snackbarMessage, isNull);
+      expect(viewModel.submitStatus, SubmitStatus.idle);
+    });
+
+    test('제출 중에는 중복 요청을 보내지 않는다', () async {
+      final first = viewModel.submit(_request);
+      final second = viewModel.submit(_request);
+      await Future.wait([first, second]);
+
+      expect(service.signUpCalls, 1);
+    });
   });
 }
