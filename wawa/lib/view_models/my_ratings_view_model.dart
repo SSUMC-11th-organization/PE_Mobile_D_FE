@@ -40,8 +40,9 @@ class MyRatingsViewModel extends ChangeNotifier {
         if (_disposed || version != _requestVersion) return;
         if (!_movieCache.containsKey(rating.movieId)) {
           try {
-            _movieCache[rating.movieId] =
-                await _movieService.findMovieById(rating.movieId);
+            _movieCache[rating.movieId] = await _movieService.findMovieById(
+              rating.movieId,
+            );
           } on DioException {
             // 일시적 네트워크 실패는 캐시하지 않습니다. 다음 로딩에서 재시도합니다.
           }
@@ -64,6 +65,51 @@ class MyRatingsViewModel extends ChangeNotifier {
       message = writeMyRatingsErrorMessage(error);
     }
     if (!_disposed && version == _requestVersion) notifyListeners();
+  }
+
+  String? refreshWarning;
+
+  Future<void> _refreshAfterWrite() async {
+    await load(); // load()는 GET 실패를 status=error로 기록합니다.
+    if (status == MyRatingsLoadStatus.error) {
+      refreshWarning = '저장은 완료됐지만 목록을 불러오지 못했습니다. 조회만 다시 시도해 주세요.';
+      if (!_disposed) notifyListeners();
+    } else {
+      refreshWarning = null;
+    }
+  }
+
+  Future<void> updateRating({
+    required int ratingId,
+    required int score,
+    String? comment,
+  }) async {
+    try {
+      await _service.updateRating(
+        memberId: memberId,
+        ratingId: ratingId,
+        score: score,
+        comment: comment,
+      );
+    } on DioException catch (error) {
+      message = writeErrorMessage(error);
+      notifyListeners();
+      if (shouldRefreshAfterRatingError(error)) await load();
+      rethrow; // 쓰기 실패일 때만 Dialog가 실패로 처리합니다.
+    }
+    await _refreshAfterWrite(); // GET 실패는 저장 실패로 다시 던지지 않습니다.
+  }
+
+  Future<void> deleteRating(int ratingId) async {
+    try {
+      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+    } on DioException catch (error) {
+      message = writeErrorMessage(error);
+      notifyListeners();
+      if (shouldRefreshAfterRatingError(error)) await load();
+      rethrow;
+    }
+    await _refreshAfterWrite();
   }
 
   @override

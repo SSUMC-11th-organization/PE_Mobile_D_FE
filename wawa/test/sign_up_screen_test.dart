@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dio/dio.dart';
-import 'package:movielog/data/services/member_check_service.dart';
+import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
+import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:provider/provider.dart';
 
-Widget _app() => MaterialApp(
-  home: ChangeNotifierProvider(
-    create: (_) => SignUpViewModel(MemberCheckService(Dio())),
-    child: const SignUpScreen(),
-  ),
+class _AvailableService extends SignUpService {
+  _AvailableService() : super(Dio());
+
+  @override
+  Future<bool> checkNickname(String nickname) async => true;
+
+  @override
+  Future<bool> checkEmail(String email) async => true;
+}
+
+Widget _app() => MultiProvider(
+  providers: [
+    ChangeNotifierProvider(create: (_) => LearningMemberSession()),
+    ChangeNotifierProvider(create: (_) => SignUpViewModel(_AvailableService())),
+  ],
+  child: const MaterialApp(home: SignUpScreen()),
 );
 
 void main() {
@@ -33,9 +45,19 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, '비밀번호를 입력해주세요'),
-      'password123',
+      'Password1!',
     );
     await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+
+    // 중복 확인 전에는 비활성화
+    expect(submitButton().onPressed, isNull);
+
+    final viewModel = tester
+        .element(find.byType(SignUpScreen))
+        .read<SignUpViewModel>();
+    await viewModel.checkNickname('무비러버');
+    await viewModel.checkEmail('movie@example.com');
     await tester.pump();
 
     expect(submitButton().onPressed, isNotNull);
@@ -48,14 +70,13 @@ void main() {
       find.widgetWithText(TextFormField, '닉네임을 입력해주세요'),
       'a',
     );
-    // 버튼은 닉네임이 짧으면 비활성 상태이므로, 비밀번호 입력창의 완료 액션으로 직접 제출한다.
     await tester.enterText(
       find.widgetWithText(TextFormField, '비밀번호를 입력해주세요'),
-      'password123',
+      'Password1!',
     );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
 
-    expect(find.text('닉네임은 2자 이상이어야 합니다.'), findsOneWidget);
+    expect(find.text('닉네임은 2~12자여야 합니다.'), findsOneWidget);
   });
 }
