@@ -38,8 +38,10 @@ class RatingApiService {
   final Dio _publicDio;
   final Dio _authDio;
 
-  /// ratingId 내림차순. 평점이 없으면 빈 배열, 없는 회원은 MEMBER404_1.
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
+  /// 공개 유저별 평점 조회. ratingId 내림차순, 평점이 없으면 빈 배열, 없는 회원은 MEMBER404_1.
+  /// v7 로그인·내 정보 응답에 memberId가 없으므로 '내 평점' 화면에서는 호출하지 않는다.
+  /// (JWT claim에서 memberId를 추정하지 않는다)
+  Future<List<RatingDto>> fetchMemberRatings(int memberId) async {
     final response = await _publicDio.get('/v7/members/$memberId/ratings');
     return parseRatingList(response.data);
   }
@@ -84,21 +86,4 @@ String writeErrorMessage(DioException error) {
       readCommonErrorMessage(error.response?.data) ??
           '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
   };
-}
-
-/// 403·404는 화면의 목록이 서버 상태와 어긋났다는 뜻이므로 다시 조회해 맞춘다.
-/// 400·409는 값을 고쳐 다시 시도하면 되는 오류라 다시 조회하지 않는다.
-bool shouldRefreshAfterRatingError(DioException error) {
-  final code = apiErrorCode(error);
-  return code == 'RATING403_1' || code == 'RATING404_1';
-}
-
-/// 유저별 평점 조회 실패 문구. 400·404·그 밖의 실패를 하나로 뭉치지 않는다.
-String writeMyRatingsErrorMessage(DioException error) {
-  final status = error.response?.statusCode;
-  if (apiErrorCode(error) == 'MEMBER404_1' || status == 404) {
-    return '존재하지 않는 회원입니다.';
-  }
-  if (status == 400) return 'memberId 형식을 다시 확인해 주세요.';
-  return '평점을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }

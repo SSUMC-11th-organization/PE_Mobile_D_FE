@@ -9,6 +9,7 @@ import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import 'auth_view_model.dart';
+import 'session_rating_store.dart';
 import 'submit_status.dart';
 
 enum MovieDetailLoadStatus { loading, success, notFound, error }
@@ -20,7 +21,8 @@ class MovieDetailViewModel extends ChangeNotifier {
   MovieDetailViewModel(
     this._service,
     this._ratingService,
-    this._auth, {
+    this._auth,
+    this._ratingStore, {
     required this.movieId,
     TmdbMovieDto? initialMovie,
   }) : movie = initialMovie == null
@@ -28,11 +30,15 @@ class MovieDetailViewModel extends ChangeNotifier {
            : TmdbMovieDetailDto.fromListItem(initialMovie),
        status = initialMovie == null
            ? MovieDetailLoadStatus.loading
-           : MovieDetailLoadStatus.success;
+           : MovieDetailLoadStatus.success {
+    // 마이페이지에서 이 영화의 평점을 수정·삭제하면 상세의 카드·버튼도 바로 바뀐다
+    _ratingStore.addListener(_onRatingsChanged);
+  }
 
   final TmdbMovieService _service;
   final RatingApiService _ratingService;
   final AuthViewModel _auth;
+  final SessionRatingStore _ratingStore;
 
   /// TMDB 영화 ID. 숫자가 아닌 Path Parameter면 null
   final int? movieId;
@@ -43,8 +49,11 @@ class MovieDetailViewModel extends ChangeNotifier {
   SubmitStatus submitStatus = SubmitStatus.idle;
   String? submitMessage;
 
-  /// 이번 세션에서 이 영화에 등록한 평점. 등록 응답 result(Rating 객체)로 채운다
-  RatingDto? createdRating;
+  /// 이번 세션에서 이 영화에 등록한 평점. 등록·수정 응답 result(Rating 객체)를 보관한 값
+  RatingDto? get createdRating {
+    final id = movieId;
+    return id == null ? null : _ratingStore.ratingForMovie(id);
+  }
 
   /// 등록 요청이 토큰 만료(AUTH401_2/3/4)로 실패해 세션이 정리됐는지
   bool sessionExpired = false;
@@ -117,8 +126,9 @@ class MovieDetailViewModel extends ChangeNotifier {
         ),
       );
       if (_isStale(version)) return;
-      createdRating = rating; // 등록 result의 Rating 객체로 현재 카드를 갱신
       submitStatus = SubmitStatus.success;
+      // 등록 result의 Rating 객체를 세션 목록에 넣어 상세 카드와 내 평점 화면을 갱신
+      _ratingStore.add(rating, sessionVersion: version);
     } on DioException catch (error) {
       if (_isStale(version)) return;
       submitStatus = SubmitStatus.error;
@@ -150,9 +160,14 @@ class MovieDetailViewModel extends ChangeNotifier {
     return true;
   }
 
+  void _onRatingsChanged() {
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
     _disposed = true;
+    _ratingStore.removeListener(_onRatingsChanged);
     super.dispose();
   }
 }

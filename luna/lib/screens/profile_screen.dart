@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../models/profile_stat.dart';
+import '../view_models/auth_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/profile/edit_profile_button.dart';
 import '../widgets/profile/favorite_genres.dart';
@@ -8,6 +11,8 @@ import '../widgets/profile/my_ratings_entry.dart';
 import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/profile_stats.dart';
 
+/// 마이페이지. 닉네임·이메일은 MainScreen이 불러온 AuthViewModel.member(GET me)를 구독한다.
+/// 사진·통계·장르는 기존 디자인 예시 데이터이며 v7 GET me 응답에는 없다.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -29,28 +34,49 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // read가 아니라 watch로 구독해야 프로필 수정 후 새 닉네임으로 다시 그려진다
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+
     return Scaffold(
-      appBar: const MovieLogAppBar(title: '내 프로필'),
+      appBar: MovieLogAppBar(
+        title: '내 프로필',
+        actions: [
+          TextButton(
+            // 토큰과 member를 지우면 상태가 signedOut이 되고 Router가 /login으로 보낸다
+            onPressed: auth.storageCleanupInProgress ? null : auth.logout,
+            child: const Text('로그아웃'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
           child: Column(
             // 자식들을 가로 전체 너비로 늘려서 각 위젯 안에서 가운데 정렬이 되도록 함
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
+            children: [
               ProfileHeader(
                 imagePath: 'assets/images/profile/profile_movielog.jpg',
-                name: '무비러버',
-                bio: '매주 주말엔 영화관으로 출근하는 프로 관람객. 좋은 영화를 보고 기록하는 것을 좋아합니다.',
+                name: member?.nickname ?? '내 정보를 불러오는 중',
+                email: member?.email ?? '',
               ),
-              SizedBox(height: 24),
-              Center(child: EditProfileButton()),
-              SizedBox(height: 24),
-              ProfileStats(stats: _stats),
-              SizedBox(height: 24),
-              MyRatingsEntry(),
-              SizedBox(height: 32),
-              FavoriteGenres(genres: _genres),
+              const SizedBox(height: 24),
+              Center(
+                child: EditProfileButton(
+                  // 수정할 원래 값이 있어야 하므로 내 정보를 받은 뒤에만 켠다
+                  onPressed: member == null
+                      ? null
+                      : () => context.push('/my/profile/edit'),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const ProfileStats(stats: _stats),
+              const SizedBox(height: 24),
+              const MyRatingsEntry(),
+              const SizedBox(height: 32),
+              const FavoriteGenres(genres: _genres),
             ],
           ),
         ),

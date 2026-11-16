@@ -14,7 +14,7 @@ import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'view_models/auth_view_model.dart';
-import 'view_models/learning_member_session.dart';
+import 'view_models/session_rating_store.dart';
 
 class MovieLogApp extends StatelessWidget {
   const MovieLogApp({super.key});
@@ -32,10 +32,6 @@ class MovieLogApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<TokenStorage>.value(value: tokenStorage),
-        // 회원가입 결과의 memberId를 마이페이지 평점 조회 Route에서 읽는다
-        ChangeNotifierProvider<LearningMemberSession>(
-          create: (_) => LearningMemberSession(),
-        ),
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
         ),
@@ -54,6 +50,11 @@ class MovieLogApp extends StatelessWidget {
             context.read<MemberApiService>(),
             context.read<TokenStorage>(),
           ),
+        ),
+        // 이번 로그인 세션에서 등록한 평점. 세션이 바뀌면 스스로 비운다
+        ChangeNotifierProvider<SessionRatingStore>(
+          create: (context) =>
+              SessionRatingStore(context.read<AuthViewModel>()),
         ),
       ],
       child: const _MovieLogRouterApp(),

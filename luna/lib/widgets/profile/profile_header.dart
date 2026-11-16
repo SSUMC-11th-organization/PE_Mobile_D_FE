@@ -7,12 +7,12 @@ class ProfileHeader extends StatelessWidget {
     super.key,
     this.imagePath, // null이면 기본 Icon을 표시
     required this.name,
-    required this.bio,
+    required this.email,
   });
 
   final String? imagePath;
   final String name;
-  final String bio;
+  final String email; // GET me로 받은 이메일
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +51,10 @@ class ProfileHeader extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          bio,
-          style: textTheme.bodyMedium?.copyWith(height: 24 / 14),
+          email,
+          style: textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
       ],

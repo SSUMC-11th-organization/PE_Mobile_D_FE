@@ -3,9 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../data/models/tmdb_movie_dto.dart';
+import '../data/services/member_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/sign_up_service.dart';
 import '../data/services/tmdb_movie_service.dart';
+import '../screens/edit_profile_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_screen.dart';
@@ -16,13 +18,15 @@ import '../screens/profile_screen.dart';
 import '../screens/sign_up_screen.dart';
 import '../screens/splash_screen.dart';
 import '../view_models/auth_view_model.dart';
-import '../view_models/learning_member_session.dart';
+import '../view_models/edit_profile_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
 import '../view_models/my_ratings_view_model.dart';
+import '../view_models/session_rating_store.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
+import '../widgets/common/movie_log_button.dart';
 
 /// 인증 상태에 맞는 경로를 정한다. redirect 안에서는 상태만 읽고 API를 호출하지 않는다.
 String? authRedirect(AuthStatus status, String location) {
@@ -56,8 +60,8 @@ class AppRouter {
     return GoRouter(
       initialLocation: '/start',
       navigatorKey: rootNavigatorKey,
-      // 인증 상태가 바뀌면 사용자가 이동하지 않아도 redirect를 다시 실행한다
-      refreshListenable: authViewModel,
+      // 인증 상태(status)가 바뀌면 사용자가 이동하지 않아도 redirect를 다시 실행한다
+      refreshListenable: authViewModel.statusListenable,
       redirect: (context, state) =>
           authRedirect(authViewModel.status, state.uri.path),
       routes: [
@@ -137,28 +141,51 @@ class AppRouter {
                       path: 'ratings', // 최종 경로: /my/ratings
                       // 탭 Navigator가 아닌 root Navigator 위에 표시해 하단 NavigationBar를 가린다
                       parentNavigatorKey: rootNavigatorKey,
+                      // 7주차의 memberId 대신 토큰 기반 Service와 이번 세션의 평점 목록을 쓴다
+                      builder: (context, state) =>
+                          ChangeNotifierProvider<MyRatingsViewModel>(
+                            create: (context) => MyRatingsViewModel(
+                              context.read<RatingApiService>(),
+                              context.read<TmdbMovieService>(),
+                              context.read<SessionRatingStore>(),
+                              context.read<AuthViewModel>(),
+                            )..load(),
+                            child: const MyRatingsScreen(),
+                          ),
+                    ),
+                    GoRoute(
+                      path: 'profile/edit', // 최종 경로: /my/profile/edit
+                      parentNavigatorKey: rootNavigatorKey,
                       builder: (context, state) {
-                        final id = context
-                            .read<LearningMemberSession>()
-                            .memberId;
-                        if (id == null) {
-                          return const Scaffold(
-                            appBar: MovieLogAppBar(
-                              title: '내가 등록한 평점',
+                        final auth = context.watch<AuthViewModel>();
+                        // 내 정보를 아직 못 받았으면 수정할 값이 없으므로 로딩·재시도만 보여준다
+                        if (auth.member == null) {
+                          return Scaffold(
+                            appBar: const MovieLogAppBar(
+                              title: '프로필 수정',
                               showBackButton: true,
                               centerTitle: true,
                               fallbackLocation: '/my',
                             ),
-                            body: Center(child: Text('학습용 회원가입이 필요합니다.')),
+                            body: Center(
+                              child: auth.memberStatus == MemberLoadStatus.error
+                                  ? MovieLogButton(
+                                      label: '다시 시도',
+                                      width: 120,
+                                      onPressed: () =>
+                                          auth.loadMember(force: true),
+                                    )
+                                  : const CircularProgressIndicator(),
+                            ),
                           );
                         }
-                        return ChangeNotifierProvider<MyRatingsViewModel>(
-                          create: (context) => MyRatingsViewModel(
-                            context.read<RatingApiService>(),
-                            context.read<TmdbMovieService>(),
-                            id,
-                          )..load(),
-                          child: const MyRatingsScreen(),
+                        // 프로필 수정 화면에서만 쓰는 ViewModel이므로 Route에서 만든다
+                        return ChangeNotifierProvider<EditProfileViewModel>(
+                          create: (context) => EditProfileViewModel(
+                            context.read<MemberApiService>(),
+                            auth,
+                          ),
+                          child: const EditProfileScreen(),
                         );
                       },
                     ),
@@ -187,6 +214,7 @@ class AppRouter {
             context.read<TmdbMovieService>(),
             context.read<RatingApiService>(),
             context.read<AuthViewModel>(),
+            context.read<SessionRatingStore>(),
             movieId: id,
             initialMovie: extra is TmdbMovieDto && extra.id == id
                 ? extra

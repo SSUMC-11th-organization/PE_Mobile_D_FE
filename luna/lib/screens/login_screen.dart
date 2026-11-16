@@ -24,15 +24,32 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
   late final TapGestureRecognizer _signUpRecognizer;
+  late final AuthViewModel _auth;
 
   @override
   void initState() {
     super.initState();
     _signUpRecognizer = TapGestureRecognizer()..onTap = _goToSignUp;
+    _auth = context.read<AuthViewModel>();
+    // 화면이 열려 있는 동안 만료되는 경우는 리스너로,
+    // 이미 만료된 상태로 화면이 처음 열리는 경우는 첫 프레임 이후 한 번 확인한다
+    _auth.addListener(_showSessionExpired);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showSessionExpired());
+  }
+
+  /// 토큰 만료·무효로 쫓겨난 경우에만 안내한다.
+  /// 직접 로그아웃이나 로그인 실패(AUTH401_1)는 sessionExpired를 켜지 않는다.
+  void _showSessionExpired() {
+    if (!mounted || !_auth.sessionExpired) return;
+    _auth.consumeSessionExpired(); // 먼저 꺼서 같은 Snackbar가 반복되지 않게 한다
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('로그인이 만료됐어요. 다시 로그인해 주세요.')));
   }
 
   @override
   void dispose() {
+    _auth.removeListener(_showSessionExpired);
     _emailController.dispose();
     _passwordController.dispose();
     _passwordFocusNode.dispose();

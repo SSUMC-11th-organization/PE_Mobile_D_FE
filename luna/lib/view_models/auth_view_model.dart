@@ -30,7 +30,18 @@ class AuthViewModel extends ChangeNotifier {
   final MemberApiService _memberApi;
   final TokenStorage _storage;
 
-  AuthStatus status = AuthStatus.initializing;
+  AuthStatus _status = AuthStatus.initializing;
+  AuthStatus get status => _status;
+  set status(AuthStatus value) {
+    _status = value;
+    _statusNotifier.value = value; // 같은 값이면 알리지 않는다
+  }
+
+  /// 로그인 상태가 바뀔 때만 알리는 Listenable. GoRouter의 refreshListenable에 연결한다.
+  /// 닉네임 교체·내 정보 로딩처럼 status와 무관한 알림으로 redirect가 다시 돌면
+  /// 진행 중인 화면 이동(pop 등)을 되돌릴 수 있으므로 AuthViewModel 전체를 연결하지 않는다.
+  ValueListenable<AuthStatus> get statusListenable => _statusNotifier;
+  final _statusNotifier = ValueNotifier<AuthStatus>(AuthStatus.initializing);
   MemberInfo? member;
   MemberLoadStatus memberStatus = MemberLoadStatus.idle;
 
@@ -196,6 +207,23 @@ class AuthViewModel extends ChangeNotifier {
     _notify();
   }
 
+  /// 프로필 수정 성공 응답으로 메모리의 내 정보를 교체한다. GET me를 다시 호출하지 않는다.
+  void updateMember(MemberInfo updated, {required int requestVersion}) {
+    if (!_isCurrent(requestVersion) || status != AuthStatus.signedIn) return;
+    member = updated;
+    memberStatus = MemberLoadStatus.success;
+    _notify();
+  }
+
+  /// 사용자가 직접 누른 로그아웃. 저장소와 메모리를 함께 비우지만 만료 안내는 켜지 않는다.
+  /// 클라이언트 세션만 비우며, 서버에서 토큰이 즉시 폐기된다고 보장하지 않는다.
+  Future<void> logout() => _clearCurrentSession(expired: false);
+
+  /// 로그인 화면이 만료 안내 Snackbar를 한 번 보여준 뒤 호출해 반복 표시를 막는다.
+  void consumeSessionExpired() {
+    sessionExpired = false;
+  }
+
   /// 다른 ViewModel이 보호 요청에서 AUTH401_2/3/4를 받았을 때 세션 정리를 요청하는 진입점.
   /// 요청을 보낼 때의 sessionVersion을 넘기면, 이미 바뀐 세션(새 로그인)은 지우지 않는다.
   Future<void> expireSession({int? requestVersion}) async {
@@ -237,6 +265,7 @@ class AuthViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _statusNotifier.dispose();
     _sessionVersion++;
     super.dispose();
   }

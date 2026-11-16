@@ -2,30 +2,42 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:movielog/data/models/member_info.dart';
 import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_detail_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_page.dart';
+import 'package:movielog/data/services/member_api_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/router/app_router.dart';
+import 'package:movielog/screens/edit_profile_screen.dart';
+import 'package:movielog/screens/login_screen.dart';
 import 'package:movielog/screens/my_ratings_screen.dart';
 import 'package:movielog/screens/profile_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/fake_auth.dart';
 
 class _FakeRatingApiService extends RatingApiService {
   _FakeRatingApiService() : super(Dio(), Dio());
+}
 
-  final requestedIds = <int>[];
+class _FakeMemberApiService extends FakeMemberApiService {
+  Object? updateError;
+  final updatedNicknames = <String>[];
 
   @override
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    requestedIds.add(memberId);
-    return const [];
+  Future<MemberInfo> updateNickname(String nickname) async {
+    updatedNicknames.add(nickname);
+    if (updateError != null) throw updateError!;
+    return MemberInfo(
+      email: testMember.email,
+      nickname: nickname,
+      createdAt: testMember.createdAt,
+    );
   }
 }
 
@@ -46,73 +58,191 @@ class _FakeTmdbMovieService extends TmdbMovieService {
       });
 }
 
+class _App {
+  _App(this.router, this.auth, this.store, this.memberApi, this.storage);
+
+  final GoRouter router;
+  final AuthViewModel auth;
+  final SessionRatingStore store;
+  final _FakeMemberApiService memberApi;
+  final FakeTokenStorage storage;
+}
+
 /// 로그인된 세션으로 앱 Router를 띄운다.
-Future<GoRouter> _pumpApp(
-  WidgetTester tester, {
-  required RatingApiService ratingService,
-  required LearningMemberSession session,
-}) async {
-  final auth = signedInAuth();
+Future<_App> _pumpApp(WidgetTester tester) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
+  final storage = FakeTokenStorage(token: 'test-token');
+  final memberApi = _FakeMemberApiService();
+  final auth = signedInAuth(storage: storage, memberApi: memberApi);
+  final store = SessionRatingStore(auth);
   final router = AppRouter.createRouter(auth);
   addTearDown(router.dispose);
   await tester.pumpWidget(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<LearningMemberSession>.value(value: session),
         ChangeNotifierProvider<AuthViewModel>.value(value: auth),
+        ChangeNotifierProvider<SessionRatingStore>.value(value: store),
+        Provider<MemberApiService>.value(value: memberApi),
         Provider<TmdbMovieService>.value(value: _FakeTmdbMovieService()),
-        Provider<RatingApiService>.value(value: ratingService),
+        Provider<RatingApiService>.value(value: _FakeRatingApiService()),
       ],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
     ),
   );
-  return router;
+  return _App(router, auth, store, memberApi, storage);
 }
 
 void main() {
-  testWidgets('마이페이지 → 내가 등록한 평점은 하단 탭 없이 열리고, 뒤로가면 마이페이지로 돌아온다', (
+  testWidgets('마이페이지는 GET me의 닉네임·이메일을 보여준다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.router.go('/my');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ProfileScreen), findsOneWidget);
+    expect(find.text('무비러버'), findsOneWidget);
+    expect(find.text('movie@example.com'), findsOneWidget);
+    expect(find.text('로그아웃'), findsOneWidget);
+  });
+
+  testWidgets('내가 등록한 평점은 하단 탭 없이 이번 세션의 평점을 보여주고, 뒤로가면 마이페이지로 돌아온다', (
     tester,
   ) async {
-    final ratingService = _FakeRatingApiService();
-    final router = await _pumpApp(
-      tester,
-      ratingService: ratingService,
-      session: LearningMemberSession()..setMemberId(1),
+    final app = await _pumpApp(tester);
+    app.store.add(
+      RatingDto(
+        ratingId: 1,
+        movieId: 550,
+        score: 5,
+        comment: '최고의 영화!',
+        createdAt: DateTime.utc(2026, 11, 16),
+      ),
+      sessionVersion: app.auth.sessionVersion,
     );
-    router.go('/my');
+    app.router.go('/my');
     await tester.pumpAndSettle();
-    expect(find.byType(ProfileScreen), findsOneWidget);
-    expect(find.byType(NavigationBar), findsOneWidget);
 
     await tester.ensureVisible(find.text('내가 등록한 평점'));
     await tester.tap(find.text('내가 등록한 평점'));
     await tester.pumpAndSettle();
 
     expect(find.byType(MyRatingsScreen), findsOneWidget);
-    expect(ratingService.requestedIds, [1]);
+    expect(find.text('최고의 영화!'), findsOneWidget);
     // root Navigator 위에 쌓여 하단 NavigationBar가 가려진다
     expect(find.byType(NavigationBar).hitTestable(), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('뒤로가기'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(MyRatingsScreen), findsNothing);
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
   });
 
-  testWidgets('학습용 회원 ID가 없으면 평점을 조회하지 않고 회원가입을 안내한다', (tester) async {
-    final ratingService = _FakeRatingApiService();
-    final router = await _pumpApp(
-      tester,
-      ratingService: ratingService,
-      session: LearningMemberSession(),
-    );
-    router.go('/my/ratings');
+  testWidgets('프로필 수정에 성공하면 마이페이지로 돌아가고 새 닉네임이 바로 보인다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.router.go('/my');
     await tester.pumpAndSettle();
 
-    expect(find.text('학습용 회원가입이 필요합니다.'), findsOneWidget);
+    await tester.tap(find.text('프로필 수정'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EditProfileScreen), findsOneWidget);
+    expect(find.byType(NavigationBar).hitTestable(), findsNothing);
+
+    await tester.enterText(find.byType(TextField).last, '시네필');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(app.memberApi.updatedNicknames, ['시네필']);
+    expect(find.byType(EditProfileScreen), findsNothing);
+    expect(find.text('시네필'), findsOneWidget);
+    expect(find.text('프로필을 수정했어요.'), findsOneWidget);
+    expect(app.memberApi.fetchCount, 0); // GET me를 다시 부르지 않는다
+  });
+
+  testWidgets('MEMBER409_1이면 화면에 남아 입력값을 유지하고 필드 아래에 안내한다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.memberApi.updateError = apiError(409, 'MEMBER409_1');
+    app.router.go('/my/profile/edit');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '영화광');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EditProfileScreen), findsOneWidget);
+    expect(find.text('이미 사용 중인 닉네임이에요.'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '영화광'), findsOneWidget);
+    expect(app.auth.status, AuthStatus.signedIn);
+  });
+
+  testWidgets('네트워크 실패는 로그아웃하지 않고 Snackbar로 재시도를 안내한다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.memberApi.updateError = DioException.connectionError(
+      requestOptions: RequestOptions(path: '/v7/members/me'),
+      reason: 'offline',
+    );
+    app.router.go('/my/profile/edit');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '시네필');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('네트워크 상태를 확인하고 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.byType(EditProfileScreen), findsOneWidget);
+    expect(app.auth.status, AuthStatus.signedIn);
+  });
+
+  testWidgets('닉네임이 2자 미만이면 요청하지 않는다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.router.go('/my/profile/edit');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '영');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('닉네임은 2~12자로 입력해 주세요.'), findsOneWidget);
+    expect(app.memberApi.updatedNicknames, isEmpty);
+  });
+
+  testWidgets('프로필 수정 중 세션이 만료되면 로그인 화면에서 만료 Snackbar를 한 번 보여준다', (
+    tester,
+  ) async {
+    final app = await _pumpApp(tester);
+    app.memberApi.updateError = apiError(401, 'AUTH401_4');
+    app.router.go('/my/profile/edit');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '시네필');
+    await tester.tap(find.text('저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.text('로그인이 만료됐어요. 다시 로그인해 주세요.'), findsOneWidget);
+    expect(app.auth.sessionExpired, isFalse); // 표시 후 꺼서 반복하지 않는다
+    expect(app.storage.token, isNull);
+  });
+
+  testWidgets('로그아웃하면 토큰과 내 정보를 지우고 만료 안내 없이 로그인 화면으로 간다', (tester) async {
+    final app = await _pumpApp(tester);
+    app.router.go('/my');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('로그아웃'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.text('로그인이 만료됐어요. 다시 로그인해 주세요.'), findsNothing);
+    expect(app.storage.token, isNull);
+    expect(app.auth.member, isNull);
+
+    // 로그아웃 후 보호 화면으로 직접 가도 로그인 화면으로 막힌다
+    app.router.go('/my/ratings');
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(MyRatingsScreen), findsNothing);
-    expect(ratingService.requestedIds, isEmpty);
   });
 }

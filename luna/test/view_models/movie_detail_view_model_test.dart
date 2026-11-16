@@ -10,6 +10,7 @@ import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/view_models/movie_detail_view_model.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 import 'package:movielog/view_models/submit_status.dart';
 
 import '../helpers/fake_auth.dart';
@@ -55,12 +56,15 @@ MovieDetailViewModel _viewModel(
   required int? movieId,
   RatingApiService? ratingService,
   AuthViewModel? auth,
+  SessionRatingStore? store,
   TmdbMovieDto? initialMovie,
 }) {
+  final resolvedAuth = auth ?? signedInAuth();
   return MovieDetailViewModel(
     service,
     ratingService ?? _FakeRatingApiService(),
-    auth ?? signedInAuth(),
+    resolvedAuth,
+    store ?? SessionRatingStore(resolvedAuth),
     movieId: movieId,
     initialMovie: initialMovie,
   );
@@ -149,6 +153,40 @@ void main() {
     expect(viewModel.createdRating?.ratingId, 12);
     expect(viewModel.createdRating?.score, 4);
     expect(viewModel.canRate, isFalse); // 같은 세션에서 같은 영화에 다시 등록하지 않음
+  });
+
+  test('등록한 평점은 세션 목록에 들어가고, 다른 화면의 수정·삭제가 카드에 반영된다', () async {
+    final auth = signedInAuth();
+    final store = SessionRatingStore(auth);
+    final viewModel = _viewModel(
+      _FakeTmdbMovieService(),
+      movieId: 550,
+      auth: auth,
+      store: store,
+    );
+    var notified = 0;
+    viewModel.addListener(() => notified++);
+
+    await viewModel.createRating(score: 4);
+    expect(store.ratings.single.movieId, 550);
+
+    final created = viewModel.createdRating!;
+    store.replace(
+      RatingDto(
+        ratingId: created.ratingId,
+        movieId: 550,
+        score: 2,
+        comment: null,
+        createdAt: created.createdAt,
+      ),
+      sessionVersion: auth.sessionVersion,
+    );
+    expect(viewModel.createdRating?.score, 2);
+
+    store.remove(created.ratingId, sessionVersion: auth.sessionVersion);
+    expect(viewModel.createdRating, isNull);
+    expect(viewModel.canRate, isTrue); // 삭제했으면 다시 등록할 수 있다
+    expect(notified, greaterThanOrEqualTo(4));
   });
 
   test('로그인 상태가 아니면 요청하지 않고 로그인을 안내한다', () async {

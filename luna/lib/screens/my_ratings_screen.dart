@@ -12,7 +12,7 @@ import '../widgets/my_ratings/my_ratings_states.dart';
 import '../widgets/my_ratings/rating_card.dart';
 
 /// 마이페이지 위에 열리는 '내가 등록한 평점' 화면.
-/// 로그인 기능이 없으므로 학습용 memberId의 평점을 조회·수정·삭제한다.
+/// 토큰 기반 '내 평점 목록 GET'이 없으므로 이번 로그인 세션에서 등록한 평점만 수정·삭제한다.
 /// root Navigator 위에 표시되므로 하단 NavigationBar가 없다.
 class MyRatingsScreen extends StatelessWidget {
   const MyRatingsScreen({super.key});
@@ -49,12 +49,6 @@ class MyRatingsScreen extends StatelessWidget {
       MyRatingsLoadStatus.idle ||
       MyRatingsLoadStatus.loading => const MyRatingsLoading(),
       MyRatingsLoadStatus.empty => const MyRatingsEmpty(),
-      MyRatingsLoadStatus.error => MyRatingsError(
-        // 쓰기 성공 뒤 재조회만 실패했다면 저장 완료 사실을 함께 안내한다
-        message:
-            viewModel.refreshWarning ?? viewModel.message ?? '평점을 불러오지 못했습니다.',
-        onRetry: viewModel.load,
-      ),
       MyRatingsLoadStatus.success => _RatingList(viewModel: viewModel),
     };
   }
@@ -65,7 +59,7 @@ class _RatingList extends StatelessWidget {
 
   final MyRatingsViewModel viewModel;
 
-  // 재조회 중에는 이 목록이 Loading으로 바뀌어 context가 사라지므로
+  // 삭제로 목록이 비면 이 위젯이 Empty로 바뀌어 context가 사라지므로
   // Dialog의 콜백은 context 대신 viewModel을 직접 사용한다
   Future<void> _onEditPressed(BuildContext context, RatingDto rating) {
     return showDialog<bool>(
@@ -125,6 +119,8 @@ class _RatingList extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
+              const SessionScopeNotice(),
+              const SizedBox(height: 16),
               if (notice != null) ...[
                 Text(
                   notice,

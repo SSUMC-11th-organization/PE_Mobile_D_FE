@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../common/movie_log_button.dart';
-
 /// 평점 목록을 불러오는 동안 보여주는 화면.
 class MyRatingsLoading extends StatelessWidget {
   const MyRatingsLoading({super.key});
@@ -14,11 +12,11 @@ class MyRatingsLoading extends StatelessWidget {
   }
 }
 
-/// 평점 조회는 성공했지만 등록된 평점이 없을 때 보여주는 화면.
+/// 이번 세션에서 등록한 평점이 없을 때 보여주는 화면.
 class MyRatingsEmpty extends StatelessWidget {
   const MyRatingsEmpty({super.key});
 
-  static const message = '아직 등록한 평점이 없습니다.';
+  static const message = '이번 로그인에서 등록한 평점이 없습니다.';
 
   @override
   Widget build(BuildContext context) {
@@ -35,45 +33,53 @@ class MyRatingsEmpty extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(message, style: theme.textTheme.bodyLarge),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: SessionScopeNotice(),
+          ),
         ],
       ),
     );
   }
 }
 
-/// 평점 조회에 실패했을 때 상태 코드별 문구와 다시 시도 버튼을 보여주는 화면.
-class MyRatingsError extends StatelessWidget {
-  const MyRatingsError({
-    super.key,
-    required this.message,
-    required this.onRetry,
-  });
+/// 목록 범위의 한계를 알리는 안내.
+/// v7에는 토큰 기반 '내 평점 목록 GET'이 없어 재시작 뒤 기존 평점 전체를 복원하지 못한다.
+class SessionScopeNotice extends StatelessWidget {
+  const SessionScopeNotice({super.key});
 
-  final String message;
-  final VoidCallback onRetry;
+  static const message =
+      '이번 로그인에서 등록한 평점만 표시돼요. 로그아웃하거나 앱을 다시 시작하면 '
+      '이전에 남긴 평점은 이 목록에서 불러오지 않아요.';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-            const SizedBox(height: 12),
-            Text(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
               message,
-              style: theme.textTheme.bodyLarge,
-              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
-            const SizedBox(height: 16),
-            // 고정 너비 버튼: 문구 길이와 관계없이 항상 같은 크기
-            MovieLogButton(label: '다시 시도', width: 120, onPressed: onRetry),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

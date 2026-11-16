@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../data/models/create_member_request.dart';
 import '../theme/app_colors.dart';
-import '../view_models/learning_member_session.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../view_models/submit_status.dart';
 import '../widgets/common/movie_log_app_bar.dart';
@@ -114,7 +113,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     FocusScope.of(context).unfocus();
     final viewModel = context.read<SignUpViewModel>();
-    final session = context.read<LearningMemberSession>();
     // ScaffoldMessenger는 앱 전체에서 공유되므로 화면을 이동한 뒤에도 Snackbar가 보임
     final messenger = ScaffoldMessenger.of(context);
 
@@ -129,8 +127,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     final memberId = viewModel.createdMemberId;
     if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
-      // 공개 유저별 평점 조회에만 쓰는 학습용 ID. 로그인 인증과는 별개다
-      session.setMemberId(memberId);
       messenger.showSnackBar(
         const SnackBar(content: Text('회원가입이 완료되었습니다. 로그인해 주세요.')),
       );
