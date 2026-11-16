@@ -6,6 +6,7 @@ import 'package:movielog/data/models/login_models.dart';
 import 'package:movielog/data/models/member_info.dart';
 import 'package:movielog/data/services/auth_api_service.dart';
 import 'package:movielog/data/services/member_api_service.dart';
+import 'package:movielog/services/saved_email_preference.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
 
 /// 메모리에만 토큰을 두는 테스트용 저장소.
@@ -108,4 +109,24 @@ AuthViewModel signedInAuth({
     ..status = AuthStatus.signedIn
     ..member = testMember
     ..memberStatus = MemberLoadStatus.success;
+}
+
+/// 메모리에만 이메일을 두는 '이메일 저장' 설정.
+class FakeSavedEmailPreference implements SavedEmailPreference {
+  FakeSavedEmailPreference({this.email});
+
+  String? email;
+  int clearCount = 0;
+
+  @override
+  Future<String?> readEmail() async => email;
+
+  @override
+  Future<void> saveEmail(String email) async => this.email = email.trim();
+
+  @override
+  Future<void> clear() async {
+    clearCount++;
+    email = null;
+  }
 }

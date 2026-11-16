@@ -14,9 +14,12 @@ import 'package:movielog/screens/edit_profile_screen.dart';
 import 'package:movielog/screens/login_screen.dart';
 import 'package:movielog/screens/my_ratings_screen.dart';
 import 'package:movielog/screens/profile_screen.dart';
+import 'package:movielog/services/saved_email_preference.dart';
 import 'package:movielog/theme/app_theme.dart';
 import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/view_models/session_rating_store.dart';
+import 'package:movielog/widgets/profile/discard_changes_dialog.dart';
+import 'package:movielog/widgets/profile/profile_header.dart';
 import 'package:provider/provider.dart';
 
 import '../helpers/fake_auth.dart';
@@ -86,6 +89,7 @@ Future<_App> _pumpApp(WidgetTester tester) async {
         ChangeNotifierProvider<AuthViewModel>.value(value: auth),
         ChangeNotifierProvider<SessionRatingStore>.value(value: store),
         Provider<MemberApiService>.value(value: memberApi),
+        Provider<SavedEmailPreference>.value(value: FakeSavedEmailPreference()),
         Provider<TmdbMovieService>.value(value: _FakeTmdbMovieService()),
         Provider<RatingApiService>.value(value: _FakeRatingApiService()),
       ],
@@ -244,5 +248,108 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byType(MyRatingsScreen), findsNothing);
+  });
+
+  group('Challenge', () {
+    test('가입일은 "2026.10.10 가입" 형식으로 표시한다', () {
+      expect(
+        ProfileHeader.formatJoinedAt(DateTime(2026, 10, 10)),
+        '2026.10.10 가입',
+      );
+      expect(
+        ProfileHeader.formatJoinedAt(DateTime(2026, 1, 5)),
+        '2026.01.05 가입',
+      );
+    });
+
+    testWidgets('마이페이지 닉네임 아래에 가입일을 보여준다', (tester) async {
+      final app = await _pumpApp(tester);
+      app.router.go('/my');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(ProfileHeader.formatJoinedAt(testMember.createdAt)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('내 정보 로딩 중에는 전체 로딩, 실패하면 다시 시도로 불러온다', (tester) async {
+      final app = await _pumpApp(tester);
+      app.auth
+        ..member = null
+        ..memberStatus = MemberLoadStatus.loading;
+      app.router.go('/my');
+      // 로딩 인디케이터는 계속 움직이므로 pumpAndSettle 대신 몇 프레임만 진행한다
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('로그아웃'), findsNothing);
+
+      // 로딩 실패 → 재시도 버튼
+      app.memberApi.error = DioException.connectionError(
+        requestOptions: RequestOptions(path: '/v7/members/me'),
+        reason: 'offline',
+      );
+      app.auth.memberStatus = MemberLoadStatus.idle;
+      await app.auth.loadMember();
+      await tester.pumpAndSettle();
+      expect(find.text('내 정보를 불러오지 못했어요.'), findsOneWidget);
+      expect(app.auth.status, AuthStatus.signedIn); // 실패해도 로그아웃하지 않음
+
+      app.memberApi.error = null;
+      await tester.tap(find.text('다시 시도'));
+      await tester.pumpAndSettle();
+      expect(find.text('무비러버'), findsOneWidget);
+      expect(find.text('로그아웃'), findsOneWidget);
+    });
+
+    testWidgets('변경 내용이 없으면 확인 없이 마이페이지로 돌아간다', (tester) async {
+      final app = await _pumpApp(tester);
+      app.router.go('/my');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('프로필 수정'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.bySemanticsLabel('뒤로가기'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DiscardChangesDialog), findsNothing);
+      expect(find.byType(ProfileScreen), findsOneWidget);
+    });
+
+    testWidgets('변경 내용이 있으면 확인 Dialog를 띄우고, 계속 수정은 머물고 나가기는 돌아간다', (
+      tester,
+    ) async {
+      final app = await _pumpApp(tester);
+      app.router.go('/my');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('프로필 수정'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '시네필');
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsLabel('뒤로가기'));
+      await tester.pumpAndSettle();
+      expect(find.text('변경 내용을 버릴까요?'), findsOneWidget);
+      expect(find.text('저장하지 않은 내용은 사라집니다.'), findsOneWidget);
+
+      await tester.tap(find.text('계속 수정'));
+      await tester.pumpAndSettle();
+      expect(find.byType(EditProfileScreen), findsOneWidget);
+      expect(find.widgetWithText(TextField, '시네필'), findsOneWidget);
+
+      // 시스템 뒤로가기도 같은 확인을 거친다
+      final popped = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(popped, isTrue);
+      expect(find.text('변경 내용을 버릴까요?'), findsOneWidget);
+
+      await tester.tap(find.text('나가기'));
+      await tester.pumpAndSettle();
+      expect(find.byType(EditProfileScreen), findsNothing);
+      expect(find.byType(ProfileScreen), findsOneWidget);
+      expect(find.text('무비러버'), findsOneWidget); // 저장하지 않았으므로 그대로
+      expect(app.memberApi.updatedNicknames, isEmpty);
+    });
   });
 }

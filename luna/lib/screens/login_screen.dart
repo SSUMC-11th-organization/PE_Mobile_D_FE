@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../services/saved_email_preference.dart';
 import '../view_models/auth_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_button.dart';
@@ -25,12 +26,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordFocusNode = FocusNode();
   late final TapGestureRecognizer _signUpRecognizer;
   late final AuthViewModel _auth;
+  late final SavedEmailPreference _emailPreference;
+  bool _rememberEmail = false;
 
   @override
   void initState() {
     super.initState();
     _signUpRecognizer = TapGestureRecognizer()..onTap = _goToSignUp;
     _auth = context.read<AuthViewModel>();
+    _emailPreference = context.read<SavedEmailPreference>();
+    _restoreSavedEmail();
     // 화면이 열려 있는 동안 만료되는 경우는 리스너로,
     // 이미 만료된 상태로 화면이 처음 열리는 경우는 첫 프레임 이후 한 번 확인한다
     _auth.addListener(_showSessionExpired);
@@ -45,6 +50,23 @@ class _LoginScreenState extends State<LoginScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('로그인이 만료됐어요. 다시 로그인해 주세요.')));
+  }
+
+  /// 저장해 둔 이메일이 있으면 입력칸을 채우고 '이메일 저장'을 켠 채로 시작한다.
+  Future<void> _restoreSavedEmail() async {
+    try {
+      final email = await _emailPreference.readEmail();
+      // 읽는 사이 사용자가 이미 입력을 시작했으면 덮어쓰지 않는다
+      if (!mounted || email == null || _emailController.text.isNotEmpty) {
+        return;
+      }
+      setState(() {
+        _emailController.text = email;
+        _rememberEmail = true;
+      });
+    } catch (error) {
+      debugPrint('저장된 이메일 읽기 실패: ${error.runtimeType}');
+    }
   }
 
   @override
@@ -69,14 +91,29 @@ class _LoginScreenState extends State<LoginScreen> {
         !auth.storageCleanupInProgress;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
+    final email = _emailController.text.trim();
+    final rememberEmail = _rememberEmail;
+    final preference = _emailPreference;
+    final auth = _auth;
+
     // 비밀번호는 요청에만 쓰고 저장하거나 로그로 남기지 않는다
-    context.read<AuthViewModel>().login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    await auth.login(email, _passwordController.text);
+    // 성공하면 Router가 이 화면을 닫으므로 mounted와 관계없이 미리 꺼낸 값으로 처리한다
+    if (auth.status != AuthStatus.signedIn) return;
+    try {
+      // 이메일만 저장한다. 체크를 해제하고 로그인하면 이전에 저장한 이메일도 지운다
+      if (rememberEmail) {
+        await preference.saveEmail(email);
+      } else {
+        await preference.clear();
+      }
+    } catch (error) {
+      // 이메일 저장 실패는 편의 기능 실패일 뿐이므로 로그인 흐름을 막지 않는다
+      debugPrint('이메일 저장 실패: ${error.runtimeType}');
+    }
   }
 
   void _goToSignUp() {
@@ -159,7 +196,34 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 48),
+                const SizedBox(height: 16),
+                // 이메일만 shared_preferences에 저장한다(비밀번호·토큰은 저장하지 않음)
+                MergeSemantics(
+                  child: InkWell(
+                    onTap: enabled
+                        ? () => setState(() => _rememberEmail = !_rememberEmail)
+                        : null,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberEmail,
+                          onChanged: enabled
+                              ? (value) =>
+                                    setState(() => _rememberEmail = value!)
+                              : null,
+                        ),
+                        Text(
+                          '이메일 저장',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
                 MovieLogButton(
                   label: '로그인',
                   width: double.infinity,

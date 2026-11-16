@@ -1,4 +1,4 @@
-/// 회원가입 요청 body(POST /v6/members).
+/// 회원가입 요청 body(POST /v7/members).
 class CreateMemberRequest {
   const CreateMemberRequest({
     required this.email,

@@ -2,19 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/member_info.dart';
 import '../models/profile_stat.dart';
 import '../view_models/auth_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
+import '../widgets/common/movie_log_button.dart';
 import '../widgets/profile/edit_profile_button.dart';
 import '../widgets/profile/favorite_genres.dart';
 import '../widgets/profile/my_ratings_entry.dart';
 import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/profile_stats.dart';
 
-/// 마이페이지. 닉네임·이메일은 MainScreen이 불러온 AuthViewModel.member(GET me)를 구독한다.
+/// 마이페이지. MainScreen이 시작한 내 정보 로딩(memberStatus)과
+/// AuthViewModel.member(GET me)를 구독한다.
 /// 사진·통계·장르는 기존 디자인 예시 데이터이며 v7 GET me 응답에는 없다.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // read가 아니라 watch로 구독해야 로딩 완료·프로필 수정 후 다시 그려진다
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+
+    if (member != null) return _ProfileContent(member: member, auth: auth);
+
+    // 내 정보를 받기 전에는 화면 전체를 로딩 또는 실패·재시도로 대체한다
+    final failed = auth.memberStatus == MemberLoadStatus.error;
+    return Scaffold(
+      appBar: const MovieLogAppBar(title: '내 프로필', centerTitle: true),
+      body: Center(
+        child: failed
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '내 정보를 불러오지 못했어요.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    MovieLogButton(
+                      label: '다시 시도',
+                      width: 200,
+                      height: 56,
+                      onPressed: () => auth.loadMember(force: true),
+                    ),
+                  ],
+                ),
+              )
+            : const CircularProgressIndicator(semanticsLabel: '내 정보를 불러오는 중'),
+      ),
+    );
+  }
+}
+
+class _ProfileContent extends StatelessWidget {
+  const _ProfileContent({required this.member, required this.auth});
+
+  final MemberInfo member;
+  final AuthViewModel auth;
 
   // 화면에 표시할 데이터. 항목을 추가하면 Widget도 자동으로 늘어남
   static const _stats = [
@@ -34,10 +83,6 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // read가 아니라 watch로 구독해야 프로필 수정 후 새 닉네임으로 다시 그려진다
-    final auth = context.watch<AuthViewModel>();
-    final member = auth.member;
-
     return Scaffold(
       appBar: MovieLogAppBar(
         title: '내 프로필',
@@ -59,16 +104,14 @@ class ProfileScreen extends StatelessWidget {
             children: [
               ProfileHeader(
                 imagePath: 'assets/images/profile/profile_movielog.jpg',
-                name: member?.nickname ?? '내 정보를 불러오는 중',
-                email: member?.email ?? '',
+                name: member.nickname,
+                email: member.email,
+                joinedAt: member.createdAt,
               ),
               const SizedBox(height: 24),
               Center(
                 child: EditProfileButton(
-                  // 수정할 원래 값이 있어야 하므로 내 정보를 받은 뒤에만 켠다
-                  onPressed: member == null
-                      ? null
-                      : () => context.push('/my/profile/edit'),
+                  onPressed: () => context.push('/my/profile/edit'),
                 ),
               ),
               const SizedBox(height: 24),

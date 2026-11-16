@@ -7,6 +7,7 @@ import '../view_models/auth_view_model.dart';
 import '../view_models/edit_profile_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_button.dart';
+import '../widgets/profile/discard_changes_dialog.dart';
 
 /// 프로필 수정 화면. 이메일은 읽기 전용, 닉네임만 수정한다.
 /// 성공하면 AuthViewModel.member가 이미 교체된 상태로 마이페이지에 돌아간다.
@@ -21,12 +22,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   static const _maxNicknameLength = 12;
 
   late final TextEditingController _controller;
+  late final String _originalNickname;
+  bool _isConfirmingExit = false;
 
   @override
   void initState() {
     super.initState();
-    final member = context.read<AuthViewModel>().member;
-    _controller = TextEditingController(text: member?.nickname ?? '');
+    _originalNickname = context.read<AuthViewModel>().member?.nickname ?? '';
+    _controller = TextEditingController(text: _originalNickname);
+  }
+
+  /// 저장하지 않은 닉네임 변경이 있는지. 앞뒤 공백만 다른 값은 같은 값으로 본다
+  bool get _hasChanges => _controller.text.trim() != _originalNickname;
+
+  /// 변경 내용이 있으면 확인 Dialog를 띄우고, '나가기'를 고르면 마이페이지로 돌아간다.
+  /// 시스템 뒤로가기(PopScope)와 AppBar 뒤로가기가 모두 이 함수를 거친다.
+  Future<void> _confirmExit() async {
+    if (_isConfirmingExit || context.read<EditProfileViewModel>().isSaving) {
+      return;
+    }
+    if (_hasChanges) {
+      _isConfirmingExit = true;
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (_) => const DiscardChangesDialog(),
+      );
+      _isConfirmingExit = false;
+      if (leave != true || !mounted) return; // 계속 수정: 현재 화면에 머문다
+    }
+    if (!mounted) return;
+    final router = GoRouter.of(context);
+    if (router.canPop()) {
+      router.pop();
+    } else {
+      router.go('/my');
+    }
   }
 
   @override
@@ -73,9 +103,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Consumer<EditProfileViewModel>(
       builder: (context, viewModel, child) {
         final saving = viewModel.isSaving;
-        // 저장 중에는 시스템 뒤로가기(PopScope)와 AppBar 뒤로가기를 함께 막는다
+        // 저장 중에는 뒤로가기를 막고, 변경 내용이 있으면 확인 Dialog를 거친다
         return PopScope(
-          canPop: !saving,
+          canPop: !saving && !_hasChanges,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) _confirmExit();
+          },
           child: Scaffold(
             appBar: MovieLogAppBar(
               title: '프로필 수정',
@@ -83,6 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               backEnabled: !saving,
               centerTitle: true,
               fallbackLocation: '/my',
+              onBackPressed: _confirmExit,
             ),
             body: SafeArea(
               child: Padding(
@@ -114,7 +148,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       enabled: !saving,
                       maxLength: _maxNicknameLength,
                       textInputAction: TextInputAction.done,
-                      onChanged: (_) => viewModel.onNicknameChanged(),
+                      onChanged: (_) {
+                        viewModel.onNicknameChanged();
+                        setState(() {}); // 변경 여부(PopScope.canPop)를 다시 계산
+                      },
                       onSubmitted: (_) {
                         if (!saving) _submit();
                       },
