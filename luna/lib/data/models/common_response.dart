@@ -1,4 +1,4 @@
-/// v6 쓰기 API의 성공 응답과 공통 오류 응답을 감싸는 형식.
+/// 쓰기·인증 API(v6~v7)의 성공 응답과 공통 오류 응답을 감싸는 형식.
 /// result는 API마다 담기는 값이 다르므로 제네릭으로 표현하고, 없으면 null이다.
 class CommonResponse<T> {
   const CommonResponse({

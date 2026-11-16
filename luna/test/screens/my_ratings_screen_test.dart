@@ -15,7 +15,8 @@ import 'package:movielog/widgets/my_ratings/my_ratings_states.dart';
 import 'package:provider/provider.dart';
 
 class _FakeRatingApiService extends RatingApiService {
-  _FakeRatingApiService({this.ratings = const [], this.error}) : super(Dio());
+  _FakeRatingApiService({this.ratings = const [], this.error})
+    : super(Dio(), Dio());
 
   List<RatingDto> ratings;
   Exception? error;
@@ -31,25 +32,22 @@ class _FakeRatingApiService extends RatingApiService {
   }
 
   @override
-  Future<void> updateRating({
-    required int memberId,
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     String? comment,
   }) async {
     updates.add((ratingId, score, comment));
+    return ratings.firstWhere((item) => item.ratingId == ratingId);
   }
 
   @override
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
+  Future<void> deleteRating(int ratingId) async {
     deletes.add(ratingId);
     await deleteGate?.future;
     if (failingDeleteIds.contains(ratingId)) {
       throw DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v6/members/1/ratings/1'),
+        requestOptions: RequestOptions(path: '/v7/ratings/1'),
         reason: 'offline',
       );
     }

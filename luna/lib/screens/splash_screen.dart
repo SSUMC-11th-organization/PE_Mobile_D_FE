@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 
-class StartScreen extends StatelessWidget {
-  const StartScreen({super.key});
+import '../widgets/common/movie_log_button.dart';
+
+/// 앱 시작 시 저장된 토큰을 확인하는 동안 보여주는 Splash.
+/// 1주차 시작 화면의 로고·제목·설명 레이아웃을 재사용하고,
+/// 하단 '시작하기' 버튼 자리를 확인 중(인디케이터) / 확인 실패(다시 시도)로 대체한다.
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key, this.message, this.onRetry});
+
+  final String? message;
+
+  /// null이면 확인 중(initializing), 있으면 확인 실패 후 재시도(retryRequired) 상태
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -12,15 +21,13 @@ class StartScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        // 화면의 안전 영역을 고려하여 UI를 배치
         child: Padding(
           padding: const EdgeInsets.fromLTRB(32, 32, 32, 56),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // UI 요소들을 세로로 배치
               Text(
-                'FLUTTER 7주차',
+                'FLUTTER 8주차',
                 style: textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -48,11 +55,22 @@ class StartScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
-              FilledButton(
-                // 시작 화면을 남기지 않고 회원가입으로 이동 (뒤로가기 불가)
-                onPressed: () => context.go('/sign-up'),
-                child: const Text('시작하기'),
-              ),
+              if (onRetry == null)
+                const Center(child: CircularProgressIndicator())
+              else ...[
+                Text(
+                  message ?? '로그인 상태를 확인하지 못했어요.',
+                  style: textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                MovieLogButton(
+                  label: '다시 시도',
+                  width: double.infinity,
+                  height: 56,
+                  onPressed: onRetry,
+                ),
+              ],
             ],
           ),
         ),

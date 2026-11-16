@@ -79,7 +79,6 @@ class MyRatingsViewModel extends ChangeNotifier {
   }) {
     return _write(
       () => _service.updateRating(
-        memberId: memberId,
         ratingId: ratingId,
         score: score,
         comment: comment,
@@ -88,9 +87,7 @@ class MyRatingsViewModel extends ChangeNotifier {
   }
 
   Future<void> deleteRating(int ratingId) {
-    return _write(
-      () => _service.deleteRating(memberId: memberId, ratingId: ratingId),
-    );
+    return _write(() => _service.deleteRating(ratingId));
   }
 
   void enterSelectionMode() {
@@ -120,7 +117,7 @@ class MyRatingsViewModel extends ChangeNotifier {
     var failed = 0;
     for (final ratingId in targets) {
       try {
-        await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+        await _service.deleteRating(ratingId);
         selectedRatingIds.remove(ratingId);
       } catch (error) {
         debugPrint('평점 $ratingId 삭제 실패: $error');
@@ -145,7 +142,7 @@ class MyRatingsViewModel extends ChangeNotifier {
 
   // 쓰기 실패만 StateError로 던져 Dialog가 입력을 유지하게 한다.
   // 쓰기 성공 뒤의 GET 실패는 저장 실패가 아니므로 던지지 않는다.
-  Future<void> _write(Future<void> Function() request) async {
+  Future<void> _write(Future<Object?> Function() request) async {
     try {
       await request();
     } on DioException catch (error) {

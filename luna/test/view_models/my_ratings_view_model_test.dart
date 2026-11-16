@@ -9,7 +9,8 @@ import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
 
 class _FakeRatingApiService extends RatingApiService {
-  _FakeRatingApiService({this.ratings = const [], this.error}) : super(Dio());
+  _FakeRatingApiService({this.ratings = const [], this.error})
+    : super(Dio(), Dio());
 
   List<RatingDto> ratings;
   Exception? error;
@@ -27,26 +28,30 @@ class _FakeRatingApiService extends RatingApiService {
 
   Object? writeError;
   Set<int> failingDeleteIds = {};
-  final updates = <(int, int, int, String?)>[];
-  final deletes = <(int, int)>[];
+  final updates = <(int, int, String?)>[];
+  final deletes = <int>[];
 
+  // v7 PATCH/DELETE는 토큰으로 사용자를 식별하므로 memberId를 받지 않는다
   @override
-  Future<void> updateRating({
-    required int memberId,
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     String? comment,
   }) async {
-    updates.add((memberId, ratingId, score, comment));
+    updates.add((ratingId, score, comment));
     if (writeError != null) throw writeError!;
+    return RatingDto(
+      ratingId: ratingId,
+      movieId: 550,
+      score: score,
+      comment: comment,
+      createdAt: DateTime.utc(2026, 9, 6),
+    );
   }
 
   @override
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
-    deletes.add((memberId, ratingId));
+  Future<void> deleteRating(int ratingId) async {
+    deletes.add(ratingId);
     if (failingDeleteIds.contains(ratingId)) {
       throw _writeError(404, '존재하지 않는 평점입니다.');
     }
@@ -54,8 +59,11 @@ class _FakeRatingApiService extends RatingApiService {
   }
 }
 
+// v7은 평점 도메인 오류를 RATING 계열 code로 구분한다
+const _v7Codes = {403: 'RATING403_1', 404: 'RATING404_1', 409: 'RATING409_1'};
+
 DioException _writeError(int statusCode, String message) {
-  final options = RequestOptions(path: '/v6/members/1/ratings/1');
+  final options = RequestOptions(path: '/v7/ratings/1');
   return DioException.badResponse(
     statusCode: statusCode,
     requestOptions: options,
@@ -64,7 +72,7 @@ DioException _writeError(int statusCode, String message) {
       statusCode: statusCode,
       data: {
         'isSuccess': false,
-        'code': 'COMMON$statusCode',
+        'code': _v7Codes[statusCode] ?? 'COMMON$statusCode',
         'message': message,
       },
     ),
@@ -235,7 +243,7 @@ void main() {
     test('수정에 성공하면 null 코멘트까지 그대로 보내고 목록을 다시 조회한다', () async {
       await viewModel.updateRating(ratingId: 1, score: 3, comment: null);
 
-      expect(service.updates, [(7, 1, 3, null)]);
+      expect(service.updates, [(1, 3, null)]);
       expect(service.requestedIds, [7]);
       expect(viewModel.status, MyRatingsLoadStatus.success);
     });
@@ -245,7 +253,7 @@ void main() {
 
       await viewModel.deleteRating(1);
 
-      expect(service.deletes, [(7, 1)]);
+      expect(service.deletes, [1]);
       expect(viewModel.status, MyRatingsLoadStatus.empty);
     });
 
@@ -276,18 +284,18 @@ void main() {
       expect(service.requestedIds, isEmpty);
     });
 
-    test('403·404는 서로 다른 서버 문구를 던지고 목록을 다시 조회한다', () async {
+    test('RATING403_1·RATING404_1은 서로 다른 문구를 던지고 목록을 다시 조회한다', () async {
       service.writeError = _writeError(403, '본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.');
       await expectLater(
         viewModel.deleteRating(1),
-        throwsMessage('본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.'),
+        throwsMessage('본인이 작성한 평점만 수정하거나 삭제할 수 있어요.'),
       );
       expect(service.requestedIds.length, 1);
 
-      service.writeError = _writeError(404, '존재하지 않는 평점입니다.');
+      service.writeError = _writeError(404, '해당 평점을 찾을 수 없습니다.');
       await expectLater(
         viewModel.deleteRating(1),
-        throwsMessage('존재하지 않는 평점입니다.'),
+        throwsMessage('이미 삭제되었거나 존재하지 않는 평점이에요.'),
       );
       expect(service.requestedIds.length, 2);
     });
@@ -336,7 +344,7 @@ void main() {
       service.gate!.complete();
       expect(await future, 0);
 
-      expect(service.deletes, [(7, 1), (7, 2)]);
+      expect(service.deletes, [1, 2]);
       expect(viewModel.isDeletingSelected, isFalse);
       expect(viewModel.isSelectionMode, isFalse);
       expect(viewModel.ratings.length, 1);

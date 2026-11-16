@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/rating_request.dart';
 import 'package:movielog/data/models/tmdb_movie_detail_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
+import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/view_models/movie_detail_view_model.dart';
 import 'package:movielog/view_models/submit_status.dart';
+
+import '../helpers/fake_auth.dart';
 
 class _FakeTmdbMovieService extends TmdbMovieService {
   _FakeTmdbMovieService({this.error}) : super(Dio());
@@ -23,18 +29,24 @@ class _FakeTmdbMovieService extends TmdbMovieService {
 }
 
 class _FakeRatingApiService extends RatingApiService {
-  _FakeRatingApiService({this.error}) : super(Dio());
+  _FakeRatingApiService({this.error}) : super(Dio(), Dio());
 
   final Object? error;
-  final calls = <(int, CreateRatingRequest)>[];
+  final calls = <CreateRatingRequest>[];
+  Completer<void>? gate;
 
   @override
-  Future<void> createRating({
-    required int memberId,
-    required CreateRatingRequest request,
-  }) async {
-    calls.add((memberId, request));
+  Future<RatingDto> createRating(CreateRatingRequest request) async {
+    calls.add(request);
+    await gate?.future;
     if (error != null) throw error!;
+    return RatingDto(
+      ratingId: 12,
+      movieId: request.movieId,
+      score: request.score,
+      comment: request.comment,
+      createdAt: DateTime.utc(2026, 11, 16),
+    );
   }
 }
 
@@ -42,14 +54,14 @@ MovieDetailViewModel _viewModel(
   TmdbMovieService service, {
   required int? movieId,
   RatingApiService? ratingService,
-  int? memberId = 7,
+  AuthViewModel? auth,
   TmdbMovieDto? initialMovie,
 }) {
   return MovieDetailViewModel(
     service,
     ratingService ?? _FakeRatingApiService(),
+    auth ?? signedInAuth(),
     movieId: movieId,
-    memberId: memberId,
     initialMovie: initialMovie,
   );
 }
@@ -120,7 +132,7 @@ void main() {
     expect(viewModel.movie?.title, '목록 영화');
   });
 
-  test('평점 등록은 학습용 회원 ID와 TMDB 영화 ID로 요청한다', () async {
+  test('평점 등록은 memberId 없이 TMDB 영화 ID로 요청하고 result로 카드를 갱신한다', () async {
     final ratingService = _FakeRatingApiService();
     final viewModel = _viewModel(
       _FakeTmdbMovieService(),
@@ -130,48 +142,92 @@ void main() {
 
     await viewModel.createRating(score: 4, comment: '좋아요');
 
-    final (memberId, request) = ratingService.calls.single;
-    expect(memberId, 7);
+    final request = ratingService.calls.single;
     expect(request.toJson(), {'movieId': 550, 'score': 4, 'comment': '좋아요'});
+    expect(request.toJson().containsKey('memberId'), isFalse);
     expect(viewModel.submitStatus, SubmitStatus.success);
+    expect(viewModel.createdRating?.ratingId, 12);
+    expect(viewModel.createdRating?.score, 4);
+    expect(viewModel.canRate, isFalse); // 같은 세션에서 같은 영화에 다시 등록하지 않음
   });
 
-  test('회원 ID가 없으면 요청하지 않고 회원가입을 안내한다', () async {
+  test('로그인 상태가 아니면 요청하지 않고 로그인을 안내한다', () async {
     final ratingService = _FakeRatingApiService();
+    final auth = signedInAuth()..status = AuthStatus.signedOut;
     final viewModel = _viewModel(
       _FakeTmdbMovieService(),
       movieId: 550,
       ratingService: ratingService,
-      memberId: null,
+      auth: auth,
     );
 
     await viewModel.createRating(score: 4);
 
     expect(ratingService.calls, isEmpty);
     expect(viewModel.submitStatus, SubmitStatus.error);
-    expect(viewModel.submitMessage, '먼저 회원가입을 완료해 주세요.');
+    expect(viewModel.submitMessage, '로그인 후 평점을 남길 수 있어요.');
   });
 
-  test('409면 서버 message를 그대로 담는다', () async {
+  test('RATING409_1은 안내만 하고 로그인 상태를 유지한다', () async {
+    final storage = FakeTokenStorage(token: 'test-token');
+    final auth = signedInAuth(storage: storage);
     final viewModel = _viewModel(
       _FakeTmdbMovieService(),
       movieId: 550,
-      ratingService: _FakeRatingApiService(
-        error: _statusError(
-          409,
-          data: {
-            'isSuccess': false,
-            'code': 'COMMON409',
-            'message': '이미 이 영화에 평점을 남기셨습니다.',
-          },
-        ),
-      ),
+      auth: auth,
+      ratingService: _FakeRatingApiService(error: apiError(409, 'RATING409_1')),
     );
 
     await viewModel.createRating(score: 4);
 
     expect(viewModel.submitStatus, SubmitStatus.error);
-    expect(viewModel.submitMessage, '이미 이 영화에 평점을 남기셨습니다.');
+    expect(
+      viewModel.submitMessage,
+      '이미 이 영화에 평점을 남겼어요. 마이페이지에서 기존 기록을 확인해 주세요.',
+    );
+    expect(viewModel.sessionExpired, isFalse);
+    expect(auth.status, AuthStatus.signedIn);
+    expect(storage.token, 'test-token');
+  });
+
+  for (final code in ['AUTH401_2', 'AUTH401_3', 'AUTH401_4']) {
+    test('$code는 세션을 정리하고 토큰을 지운다', () async {
+      final storage = FakeTokenStorage(token: 'test-token');
+      final auth = signedInAuth(storage: storage);
+      final viewModel = _viewModel(
+        _FakeTmdbMovieService(),
+        movieId: 550,
+        auth: auth,
+        ratingService: _FakeRatingApiService(error: apiError(401, code)),
+      );
+
+      await viewModel.createRating(score: 4);
+
+      expect(viewModel.sessionExpired, isTrue);
+      expect(auth.status, AuthStatus.signedOut);
+      expect(auth.sessionExpired, isTrue);
+      expect(auth.member, isNull);
+      expect(storage.token, isNull);
+    });
+  }
+
+  test('로그아웃·회원 전환 뒤 늦게 도착한 등록 응답은 반영하지 않는다', () async {
+    final ratingService = _FakeRatingApiService()..gate = Completer<void>();
+    final auth = signedInAuth();
+    final viewModel = _viewModel(
+      _FakeTmdbMovieService(),
+      movieId: 550,
+      auth: auth,
+      ratingService: ratingService,
+    );
+
+    final pending = viewModel.createRating(score: 4);
+    await auth.expireSession(); // 요청 도중 세션이 바뀜
+    ratingService.gate!.complete();
+    await pending;
+
+    expect(viewModel.createdRating, isNull);
+    expect(viewModel.submitStatus, isNot(SubmitStatus.success));
   });
 
   test('예상하지 못한 응답에도 제출 중에 멈추지 않는다', () async {

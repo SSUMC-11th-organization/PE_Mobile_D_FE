@@ -129,18 +129,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     final memberId = viewModel.createdMemberId;
     if (viewModel.submitStatus == SubmitStatus.success && memberId != null) {
+      // 공개 유저별 평점 조회에만 쓰는 학습용 ID. 로그인 인증과는 별개다
       session.setMemberId(memberId);
       messenger.showSnackBar(
-        SnackBar(content: Text('회원가입이 완료되었습니다. (memberId: $memberId)')),
+        const SnackBar(content: Text('회원가입이 완료되었습니다. 로그인해 주세요.')),
       );
-      // 회원가입 화면을 남기지 않고 영화 목록으로 이동 (뒤로가기 불가)
-      context.go('/movies');
+      // 가입만으로는 토큰이 없으므로 로그인 화면으로 이동 (회원가입 화면은 남기지 않음)
+      context.go('/login');
       return;
     }
 
     final message = viewModel.snackbarMessage;
     if (message != null) {
       messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  void _goToLogin() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/login');
     }
   }
 
@@ -154,13 +163,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return PopScope(
       canPop: !isSubmitting,
       child: Scaffold(
-        // 시작 화면에서 go로 들어오므로 뒤로가기는 /start로 이동
+        // 로그인 화면에서 push로 들어오므로 뒤로가기는 로그인 화면으로 돌아감
         appBar: MovieLogAppBar(
           title: '회원가입',
           centerTitle: true,
           showBackButton: true,
           backEnabled: !isSubmitting,
-          fallbackLocation: '/start',
+          fallbackLocation: '/login',
         ),
         body: SafeArea(
           // 현재 사용 가능한 너비를 기준으로 Form 배치를 결정
@@ -327,7 +336,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   onPressed: _canSubmit(viewModel) ? _submit : null,
                 ),
                 const SizedBox(height: 32),
-                const LoginPrompt(),
+                LoginPrompt(
+                  // 제출 중에는 화면을 벗어날 수 없다
+                  onTap: viewModel.submitStatus == SubmitStatus.submitting
+                      ? null
+                      : _goToLogin,
+                ),
               ],
             ),
           ],
