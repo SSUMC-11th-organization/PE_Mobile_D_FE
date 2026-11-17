@@ -144,12 +144,23 @@ Future<void> onEditPressed(BuildContext context, RatingDto rating) async {
     builder: (_) => RatingDialog(
       initialScore: rating.score,
       initialComment: rating.comment, // null이면 TextField가 빈 칸으로 시작합니다.
-      onSubmit: (score, comment) =>
-          context.read<MyRatingsViewModel>().updateRating(
+      onSubmit: (score, comment) async {
+        final viewModel = context.read<MyRatingsViewModel>();
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await viewModel.updateRating(
             ratingId: rating.ratingId,
             score: score,
             comment: comment,
-          ),
+          );
+        } catch (_) {
+          // 403·404 등은 Snackbar로 안내만 하고 로그인 상태는 유지합니다.
+          if (viewModel.message != null) {
+            messenger.showSnackBar(SnackBar(content: Text(viewModel.message!)));
+          }
+          rethrow;
+        }
+      },
     ),
   );
 
@@ -212,7 +223,12 @@ class _DeleteRatingDialogState extends State<_DeleteRatingDialog> {
       if (!mounted) return;
       setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.')),
+        SnackBar(
+          content: Text(
+            context.read<MyRatingsViewModel>().message ??
+                '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
+        ),
       );
     }
   }

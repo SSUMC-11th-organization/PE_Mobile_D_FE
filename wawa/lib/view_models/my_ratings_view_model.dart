@@ -1,20 +1,20 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/network/api_error.dart';
 import '../data/models/rating_with_movie.dart';
 import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/tmdb_movie_service.dart';
-
-const int sampleMemberId = 1; // 인증된 '내 계정'이 아닌 학습용 데이터입니다.
+import 'auth_view_model.dart';
 
 enum MyRatingsLoadStatus { idle, loading, success, empty, error }
 
 class MyRatingsViewModel extends ChangeNotifier {
-  MyRatingsViewModel(this._service, this._movieService, this.memberId);
+  MyRatingsViewModel(this._service, this._movieService, this._auth);
   final RatingApiService _service;
   final TmdbMovieService _movieService;
-  final int memberId;
+  final AuthViewModel _auth;
   final Map<int, TmdbMovieDto?> _movieCache = {};
   int _requestVersion = 0;
   bool _disposed = false;
@@ -25,19 +25,24 @@ class MyRatingsViewModel extends ChangeNotifier {
 
   Future<void> load() async {
     final version = ++_requestVersion;
+    final sessionVersion = _auth.sessionVersion;
     status = MyRatingsLoadStatus.loading;
     message = null;
     notifyListeners();
 
     try {
-      final rawRatings = await _service.fetchMyRatings(memberId);
-      if (_disposed || version != _requestVersion) return;
+      // v7에는 토큰 기반 내 평점 목록 GET이 없으므로 현재 세션에서 등록한 Rating을 사용합니다.
+      final rawRatings = _service.sessionRatings;
       final entries = <RatingWithMovie>[];
       var missingMovies = 0;
 
       // 같은 movieId는 캐시를 사용하고, 영화 조회 실패가 평점 목록을 지우지 않습니다.
       for (final rating in rawRatings) {
-        if (_disposed || version != _requestVersion) return;
+        if (_disposed ||
+            version != _requestVersion ||
+            sessionVersion != _auth.sessionVersion) {
+          return;
+        }
         if (!_movieCache.containsKey(rating.movieId)) {
           try {
             _movieCache[rating.movieId] = await _movieService.findMovieById(
@@ -51,7 +56,11 @@ class MyRatingsViewModel extends ChangeNotifier {
         if (movie == null) missingMovies++;
         entries.add(RatingWithMovie(rating: rating, movie: movie));
       }
-      if (_disposed || version != _requestVersion) return;
+      if (_disposed ||
+          version != _requestVersion ||
+          sessionVersion != _auth.sessionVersion) {
+        return;
+      }
       ratings = entries;
       status = entries.isEmpty
           ? MyRatingsLoadStatus.empty
@@ -84,31 +93,46 @@ class MyRatingsViewModel extends ChangeNotifier {
     required int score,
     String? comment,
   }) async {
+    final sessionVersion = _auth.sessionVersion; // 로그아웃·회원 전환 뒤 늦은 응답 무시
     try {
       await _service.updateRating(
-        memberId: memberId,
         ratingId: ratingId,
         score: score,
         comment: comment,
       );
     } on DioException catch (error) {
+      if (_disposed || sessionVersion != _auth.sessionVersion) return;
+      final code = apiErrorCode(error);
+      if (code == 'AUTH401_2' || code == 'AUTH401_3' || code == 'AUTH401_4') {
+        await _auth.expireSession();
+        return;
+      }
       message = writeErrorMessage(error);
       notifyListeners();
       if (shouldRefreshAfterRatingError(error)) await load();
       rethrow; // 쓰기 실패일 때만 Dialog가 실패로 처리합니다.
     }
+    if (_disposed || sessionVersion != _auth.sessionVersion) return;
     await _refreshAfterWrite(); // GET 실패는 저장 실패로 다시 던지지 않습니다.
   }
 
   Future<void> deleteRating(int ratingId) async {
+    final sessionVersion = _auth.sessionVersion;
     try {
-      await _service.deleteRating(memberId: memberId, ratingId: ratingId);
+      await _service.deleteRating(ratingId);
     } on DioException catch (error) {
+      if (_disposed || sessionVersion != _auth.sessionVersion) return;
+      final code = apiErrorCode(error);
+      if (code == 'AUTH401_2' || code == 'AUTH401_3' || code == 'AUTH401_4') {
+        await _auth.expireSession();
+        return;
+      }
       message = writeErrorMessage(error);
       notifyListeners();
       if (shouldRefreshAfterRatingError(error)) await load();
       rethrow;
     }
+    if (_disposed || sessionVersion != _auth.sessionVersion) return;
     await _refreshAfterWrite();
   }
 

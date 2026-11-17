@@ -14,9 +14,7 @@ class TmdbMovieService {
       '/movie/popular',
       queryParameters: {'language': 'ko-KR', 'page': page},
     );
-    return TmdbMoviePageDto.fromJson(
-      response.data as Map<String, dynamic>,
-    );
+    return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<TmdbMoviePageDto> discoverMovies({
@@ -34,9 +32,7 @@ class TmdbMovieService {
         if (genreId != null) 'with_genres': genreId,
       },
     );
-    return TmdbMoviePageDto.fromJson(
-      response.data as Map<String, dynamic>,
-    );
+    return TmdbMoviePageDto.fromJson(response.data as Map<String, dynamic>);
   }
 
   Future<TmdbMovieDto> fetchMovieDetail(int movieId) async {
