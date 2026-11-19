@@ -1,49 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 
-class StartScreen extends StatelessWidget {
-  const StartScreen({super.key});
+import '../widgets/movielog_button.dart';
+
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key, this.message, this.onRetry});
+
+  final String? message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(32),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              SvgPicture.asset(
-                'assets/logos/movielog_logo.svg',
-                width: 72,
-                height: 72,
-                semanticsLabel: 'MovieLog 로고',
+              Column(
+                children: [
+                  const SizedBox(height: 32),
+                  const Text('FLUTTER 8주차'),
+                  const SizedBox(height: 64),
+                  SvgPicture.asset(
+                    'assets/logos/movielog_logo.svg',
+                    width: 84,
+                    height: 84,
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    '영화의 순간을\n기록하세요',
+                    textAlign: TextAlign.center,
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '보고 싶은 영화부터 나만의 평점까지\n한곳에서 관리해요',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              const Text(
-                '영화의 순간을 기록하세요',
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                '보고 싶은 영화부터 나만의 평점까지 한곳에서 관리해요',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton(
-                onPressed: () {
-                  context.go('/register');
-                },
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+              if (onRetry == null)
+                const CircularProgressIndicator()
+              else
+                Column(
+                  children: [
+                    Text(message ?? '로그인 상태를 확인하지 못했어요.'),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: MovieLogButton(label: '다시 시도', onPressed: onRetry),
+                    ),
+                  ],
                 ),
-                child: const Text('시작하기'),
-              ),
             ],
           ),
         ),

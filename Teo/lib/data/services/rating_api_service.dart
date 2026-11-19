@@ -1,72 +1,83 @@
 import 'package:dio/dio.dart';
 
+import '../models/common_response.dart';
 import '../models/rating_dto.dart';
 import '../models/rating_request.dart';
-import '../models/common_response.dart';
+
+RatingDto parseRatingResult(Object? data) {
+  if (data is! Map<String, dynamic>) {
+    throw StateError('평점 응답 형식이 올바르지 않습니다.');
+  }
+
+  final common = CommonResponse<RatingDto>.fromJson(
+    data,
+    (value) => RatingDto.fromJson(value as Map<String, dynamic>),
+  );
+
+  final rating = common.result;
+
+  if (rating == null) {
+    throw StateError('평점 result가 없습니다.');
+  }
+
+  return rating;
+}
+
+List<RatingDto> parseRatingList(Object? data) {
+  if (data is! List) {
+    throw StateError('평점 목록 응답은 배열이어야 합니다.');
+  }
+
+  return data
+      .map((value) => RatingDto.fromJson(value as Map<String, dynamic>))
+      .toList();
+}
 
 class RatingApiService {
-  RatingApiService(this._dio);
+  RatingApiService(this._publicDio, this._authDio);
 
-  final Dio _dio;
+  final Dio _publicDio;
+  final Dio _authDio;
 
   Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    final response = await _dio.get('/v6/members/$memberId/ratings');
+    final response = await _publicDio.get('/v7/members/$memberId/ratings');
 
-    final list = response.data as List<dynamic>;
-
-    return list
-        .map((item) => RatingDto.fromJson(item as Map<String, dynamic>))
-        .toList();
+    return parseRatingList(response.data);
   }
 
-  Future<void> createRating({
-    required int memberId,
-    required CreateRatingRequest request,
-  }) async {
-    final response = await _dio.post(
-      '/v6/members/$memberId/ratings',
-      data: request.toJson(),
-    );
+  Future<RatingDto> createRating(CreateRatingRequest request) async {
+    final response = await _authDio.post('/v7/ratings', data: request.toJson());
 
-    if (response.statusCode != 201) {
-      throw StateError('예상하지 못한 등록 응답: ${response.statusCode}');
-    }
+    return parseRatingResult(response.data);
   }
 
-  Future<void> updateRating({
-    required int memberId,
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     String? comment,
   }) async {
-    await _dio.patch(
-      '/v6/members/$memberId/ratings/$ratingId',
+    final response = await _authDio.patch(
+      '/v7/ratings/$ratingId',
       data: {'score': score, 'comment': comment},
     );
+
+    return parseRatingResult(response.data);
   }
 
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
-    final response = await _dio.delete(
-      '/v6/members/$memberId/ratings/$ratingId',
-    );
+  Future<void> deleteRating(int ratingId) async {
+    final response = await _authDio.delete('/v7/ratings/$ratingId');
 
-    if (response.statusCode != 204) {
+    if (response.statusCode != 200) {
       throw StateError('예상하지 못한 삭제 응답: ${response.statusCode}');
     }
   }
 }
 
 String writeMyRatingsErrorMessage(DioException error) {
-  final status = error.response?.statusCode;
+  final data = error.response?.data;
+  final code = data is Map<String, dynamic> ? data['code'] as String? : null;
 
-  if (status == 400) {
-    return 'memberId 형식을 다시 확인해 주세요.';
-  }
-
-  if (status == 404) {
+  if (code == 'MEMBER404_1') {
     return '존재하지 않는 회원입니다.';
   }
 
@@ -88,5 +99,5 @@ bool shouldRefreshAfterRatingError(DioException error) {
 
   final code = data is Map<String, dynamic> ? data['code'] as String? : null;
 
-  return code == 'COMMON403' || code == 'COMMON404';
+  return code == 'RATING404_1' || code == 'MEMBER404_1';
 }
