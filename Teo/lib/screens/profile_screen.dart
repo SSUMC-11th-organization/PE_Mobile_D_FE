@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/auth_view_model.dart';
 import '../widgets/common_app_bar.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -11,15 +13,34 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthViewModel>();
+
     return Scaffold(
-      appBar: const CommonAppBar(title: '내 프로필'),
+      appBar: CommonAppBar(
+        title: '내 프로필',
+        actions: [
+          IconButton(
+            tooltip: '로그아웃',
+            onPressed: auth.storageCleanupInProgress
+                ? null
+                : () {
+                    context.read<AuthViewModel>().logout();
+                  },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               const SizedBox(height: 32),
-              const ProfileHeader(),
+
+              ProfileHeader(
+                nickname: auth.member?.nickname,
+                email: auth.member?.email,
+              ),
 
               const SizedBox(height: 32),
 
@@ -45,7 +66,10 @@ class ProfileScreen extends StatelessWidget {
 }
 
 class ProfileHeader extends StatelessWidget {
-  const ProfileHeader({super.key});
+  const ProfileHeader({super.key, required this.nickname, required this.email});
+
+  final String? nickname;
+  final String? email;
 
   @override
   Widget build(BuildContext context) {
@@ -62,12 +86,12 @@ class ProfileHeader extends StatelessWidget {
 
         const SizedBox(height: 16),
 
-        const Text('무비러버', style: AppTextStyles.titleLarge),
+        Text(nickname ?? '내 정보를 불러오는 중이에요', style: AppTextStyles.titleLarge),
 
         const SizedBox(height: 8),
 
         Text(
-          '좋아하는 영화를 기록하고 있어요',
+          email ?? '',
           textAlign: TextAlign.center,
           style: AppTextStyles.bodyMedium.copyWith(color: AppColors.gray),
         ),
@@ -75,7 +99,11 @@ class ProfileHeader extends StatelessWidget {
         const SizedBox(height: 20),
 
         ElevatedButton.icon(
-          onPressed: () {},
+          onPressed: nickname == null
+              ? null
+              : () {
+                  context.push('/my/profile/edit');
+                },
           icon: SvgPicture.asset(
             'assets/icons/person.svg',
             width: 18,
