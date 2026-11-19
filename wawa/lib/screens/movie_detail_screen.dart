@@ -38,8 +38,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       builder: (_) => RatingDialog(
         onSubmit: (score, comment) async {
           final viewModel = context.read<MovieDetailViewModel>();
+          final messenger = ScaffoldMessenger.of(context);
           await viewModel.createRating(score: score, comment: comment);
           if (viewModel.submitStatus != SubmitStatus.success) {
+            // 403·409는 Snackbar로 안내만 하고 로그인 상태는 유지합니다.
+            if (viewModel.submitMessage != null) {
+              messenger.showSnackBar(
+                SnackBar(content: Text(viewModel.submitMessage!)),
+              );
+            }
             throw StateError(viewModel.submitMessage ?? '저장에 실패했습니다.');
           }
         },
@@ -144,15 +151,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: viewModel.memberId == null
-                              ? null
-                              : _openRatingDialog,
+                          onPressed: _openRatingDialog,
                           icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: Text(
-                            viewModel.memberId == null
-                                ? '회원가입 후 평점 남기기'
-                                : '평점 남기기',
-                          ),
+                          label: const Text('평점 남기기'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.violet,
                             foregroundColor: AppColors.white,
