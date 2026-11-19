@@ -14,6 +14,7 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle,
     this.actions,
     this.fallbackLocation = '/home',
+    this.onBackPressed,
   });
 
   final String title;
@@ -23,6 +24,9 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool? centerTitle; // 지정하지 않으면 AppBarTheme 설정(왼쪽 정렬)을 따름
   final List<Widget>? actions;
   final String fallbackLocation; // 돌아갈 이전 화면이 없을 때 이동할 경로
+  // 지정하면 기본 뒤로가기 대신 호출한다(예: 변경 내용 확인 Dialog).
+  // context.pop은 PopScope를 거치지 않으므로 확인이 필요한 화면은 직접 처리한다
+  final VoidCallback? onBackPressed;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -43,7 +47,9 @@ class MovieLogAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false,
       leading: showBackButton
           ? IconButton(
-              onPressed: backEnabled ? () => _goBack(context) : null,
+              onPressed: backEnabled
+                  ? (onBackPressed ?? () => _goBack(context))
+                  : null,
               icon: const AppSvgIcon(
                 'assets/icons/arrow_back.svg',
                 semanticsLabel: '뒤로가기',

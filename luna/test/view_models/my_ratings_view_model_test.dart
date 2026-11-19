@@ -6,76 +6,61 @@ import 'package:movielog/data/models/rating_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_detail_dto.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
+import 'package:movielog/view_models/auth_view_model.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 
+import '../helpers/fake_auth.dart';
+
+/// v7 PATCH/DELETE만 흉내 낸다. 토큰 기반 목록 GET은 없으므로 호출되면 실패한다.
 class _FakeRatingApiService extends RatingApiService {
-  _FakeRatingApiService({this.ratings = const [], this.error}) : super(Dio());
-
-  List<RatingDto> ratings;
-  Exception? error;
-  final requestedIds = <int>[];
-  Completer<void>? gate; // 설정하면 응답을 이 Completer가 끝날 때까지 미룸
-
-  @override
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    requestedIds.add(memberId);
-    final currentRatings = ratings;
-    await gate?.future;
-    if (error != null) throw error!;
-    return currentRatings;
-  }
+  _FakeRatingApiService() : super(Dio(), Dio());
 
   Object? writeError;
   Set<int> failingDeleteIds = {};
-  final updates = <(int, int, int, String?)>[];
-  final deletes = <(int, int)>[];
+  Map<int, Object> deleteErrors = {};
+  Completer<void>? deleteGate;
+  final updates = <(int, int, String?)>[];
+  final deletes = <int>[];
 
   @override
-  Future<void> updateRating({
-    required int memberId,
+  Future<List<RatingDto>> fetchMemberRatings(int memberId) =>
+      throw StateError('내 평점 화면은 memberId 목록 GET을 호출하지 않는다');
+
+  @override
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     String? comment,
   }) async {
-    updates.add((memberId, ratingId, score, comment));
+    updates.add((ratingId, score, comment));
     if (writeError != null) throw writeError!;
+    return RatingDto(
+      ratingId: ratingId,
+      movieId: 550,
+      score: score,
+      comment: comment,
+      createdAt: DateTime.utc(2026, 11, 3),
+      updatedAt: DateTime.utc(2026, 11, 16),
+    );
   }
 
   @override
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
-    deletes.add((memberId, ratingId));
-    if (failingDeleteIds.contains(ratingId)) {
-      throw _writeError(404, '존재하지 않는 평점입니다.');
-    }
+  Future<void> deleteRating(int ratingId) async {
+    deletes.add(ratingId);
+    await deleteGate?.future;
+    final error = deleteErrors[ratingId];
+    if (error != null) throw error;
+    if (failingDeleteIds.contains(ratingId)) throw _networkError();
     if (writeError != null) throw writeError!;
   }
-}
-
-DioException _writeError(int statusCode, String message) {
-  final options = RequestOptions(path: '/v6/members/1/ratings/1');
-  return DioException.badResponse(
-    statusCode: statusCode,
-    requestOptions: options,
-    response: Response(
-      requestOptions: options,
-      statusCode: statusCode,
-      data: {
-        'isSuccess': false,
-        'code': 'COMMON$statusCode',
-        'message': message,
-      },
-    ),
-  );
 }
 
 /// fetchMovieDetail만 바꿔 실제 findMovieById(404 → null)를 그대로 사용한다.
 class _FakeTmdbMovieService extends TmdbMovieService {
-  _FakeTmdbMovieService({this.errors = const {}}) : super(Dio());
+  _FakeTmdbMovieService() : super(Dio());
 
-  Map<int, Exception> errors;
+  Map<int, Exception> errors = {};
   final requestedIds = <int>[];
 
   @override
@@ -95,221 +80,214 @@ RatingDto _rating(int ratingId, int movieId) => RatingDto(
   ratingId: ratingId,
   movieId: movieId,
   score: 4,
-  comment: null,
+  comment: '기존 후기',
   createdAt: DateTime.utc(2026, 11, 3),
 );
 
-DioException _statusError(int statusCode) {
-  final options = RequestOptions(path: '/v6/members/1/ratings');
+DioException _tmdbNotFound() {
+  final options = RequestOptions(path: '/movie/13');
   return DioException.badResponse(
-    statusCode: statusCode,
+    statusCode: 404,
     requestOptions: options,
-    response: Response(requestOptions: options, statusCode: statusCode),
+    response: Response(requestOptions: options, statusCode: 404),
   );
 }
 
 DioException _networkError() => DioException.connectionError(
-  requestOptions: RequestOptions(path: '/movie/1'),
+  requestOptions: RequestOptions(path: '/v7/ratings/1'),
   reason: 'offline',
 );
 
 void main() {
-  test('memberId 1을 조회하고 각 평점에 TMDB 영화 정보를 묶는다', () async {
-    final service = _FakeRatingApiService(ratings: [_rating(1, 550)]);
-    final viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 1);
+  late AuthViewModel auth;
+  late SessionRatingStore store;
+  late _FakeRatingApiService service;
+  late _FakeTmdbMovieService movieService;
+
+  setUp(() {
+    auth = signedInAuth();
+    store = SessionRatingStore(auth);
+    service = _FakeRatingApiService();
+    movieService = _FakeTmdbMovieService();
+  });
+
+  MyRatingsViewModel createViewModel() =>
+      MyRatingsViewModel(service, movieService, store, auth);
+
+  void addToSession(List<RatingDto> ratings) {
+    for (final rating in ratings.reversed) {
+      store.add(rating, sessionVersion: auth.sessionVersion);
+    }
+  }
+
+  test('이번 세션에서 등록한 평점에 TMDB 영화 정보를 묶는다', () async {
+    addToSession([_rating(1, 550)]);
+    final viewModel = createViewModel();
     expect(viewModel.status, MyRatingsLoadStatus.idle);
 
     final future = viewModel.load();
     expect(viewModel.status, MyRatingsLoadStatus.loading);
     await future;
 
-    expect(service.requestedIds, [1]);
     expect(viewModel.status, MyRatingsLoadStatus.success);
     expect(viewModel.ratings.single.movie?.title, '영화 550');
     expect(viewModel.message, isNull);
   });
 
-  test('빈 배열은 실패가 아니라 empty가 된다', () async {
-    final viewModel = MyRatingsViewModel(
-      _FakeRatingApiService(),
-      _FakeTmdbMovieService(),
-      1,
-    );
+  test('이번 세션에 등록한 평점이 없으면 empty가 된다', () async {
+    final viewModel = createViewModel();
 
     await viewModel.load();
 
     expect(viewModel.status, MyRatingsLoadStatus.empty);
-    expect(viewModel.message, isNull);
   });
 
-  test('400·404·그 밖의 실패를 서로 다른 문구로 구분한다', () async {
-    Future<String?> messageFor(int statusCode) async {
-      final viewModel = MyRatingsViewModel(
-        _FakeRatingApiService(error: _statusError(statusCode)),
-        _FakeTmdbMovieService(),
-        1,
-      );
-      await viewModel.load();
-      expect(viewModel.status, MyRatingsLoadStatus.error);
-      return viewModel.message;
-    }
-
-    expect(await messageFor(400), 'memberId 형식을 다시 확인해 주세요.');
-    expect(await messageFor(404), '존재하지 않는 회원입니다.');
-    expect(await messageFor(500), '평점을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
-  });
-
-  test('TMDB 조회가 실패해도 평점은 남기고 영화 정보만 비운다', () async {
-    final viewModel = MyRatingsViewModel(
-      _FakeRatingApiService(ratings: [_rating(1, 550), _rating(2, 13)]),
-      _FakeTmdbMovieService(errors: {13: _statusError(404)}),
-      1,
-    );
+  test('TMDB에 없는 영화도 평점은 남기고 영화 정보만 비운다', () async {
+    movieService.errors = {13: _tmdbNotFound()};
+    addToSession([_rating(1, 550), _rating(2, 13)]);
+    final viewModel = createViewModel();
 
     await viewModel.load();
 
-    expect(viewModel.status, MyRatingsLoadStatus.success);
     expect(viewModel.ratings, hasLength(2));
     expect(viewModel.ratings[1].movie, isNull);
     expect(viewModel.ratings[1].rating.movieId, 13);
     expect(viewModel.message, '일부 영화 정보를 가져오지 못해 제목·포스터를 대신 표시합니다.');
   });
 
-  test('같은 movieId는 한 번만 조회하고, 일시적 실패는 다음 로딩에서 다시 조회한다', () async {
-    final movieService = _FakeTmdbMovieService(errors: {13: _networkError()});
-    final viewModel = MyRatingsViewModel(
-      _FakeRatingApiService(
-        ratings: [_rating(1, 550), _rating(2, 550), _rating(3, 13)],
-      ),
-      movieService,
-      1,
-    );
+  test('같은 movieId는 한 번만 조회한다', () async {
+    addToSession([_rating(1, 550), _rating(2, 550), _rating(3, 13)]);
+    final viewModel = createViewModel();
 
     await viewModel.load();
+    await viewModel.load();
+
     expect(movieService.requestedIds..sort(), [13, 550]);
-
-    movieService.errors = {};
-    movieService.requestedIds.clear();
-    await viewModel.load();
-
-    // 550은 캐시를 사용하고, 실패했던 13만 다시 조회한다
-    expect(movieService.requestedIds, [13]);
-    expect(viewModel.ratings.every((entry) => entry.movie != null), isTrue);
-    expect(viewModel.message, isNull);
   });
 
-  test('새 요청이 시작된 뒤 도착한 이전 응답은 무시한다', () async {
-    final service = _FakeRatingApiService(ratings: [_rating(1, 550)]);
-    final viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 1);
-
-    final firstGate = Completer<void>();
-    service.gate = firstGate;
-    final first = viewModel.load(); // 평점 1개를 들고 대기
-
-    service
-      ..gate = null
-      ..ratings = const [];
+  test('영화 상세에서 새로 등록하면 목록이 따라서 바뀐다', () async {
+    final viewModel = createViewModel();
     await viewModel.load();
     expect(viewModel.status, MyRatingsLoadStatus.empty);
 
-    // 먼저 보낸 요청이 늦게 성공해도 최신 결과를 덮어쓰지 않는다
-    firstGate.complete();
-    await first;
+    addToSession([_rating(5, 680)]);
+    await pumpEventQueue();
+
+    expect(viewModel.status, MyRatingsLoadStatus.success);
+    expect(viewModel.ratings.single.rating.ratingId, 5);
+  });
+
+  test('로그아웃·만료로 세션이 바뀌면 이전 세션의 평점을 비운다', () async {
+    addToSession([_rating(1, 550)]);
+    final viewModel = createViewModel();
+    await viewModel.load();
+
+    await auth.logout();
+    await pumpEventQueue();
+
+    expect(store.ratings, isEmpty);
     expect(viewModel.status, MyRatingsLoadStatus.empty);
-    expect(viewModel.ratings, isEmpty);
   });
 
   group('평점 수정·삭제', () {
-    late _FakeRatingApiService service;
     late MyRatingsViewModel viewModel;
 
-    setUp(() {
-      service = _FakeRatingApiService(ratings: [_rating(1, 550)]);
-      viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 7);
+    setUp(() async {
+      addToSession([_rating(1, 550)]);
+      viewModel = createViewModel();
+      await viewModel.load();
     });
 
     Matcher throwsMessage(String message) => throwsA(
       isA<StateError>().having((error) => error.message, 'message', message),
     );
 
-    test('수정에 성공하면 null 코멘트까지 그대로 보내고 목록을 다시 조회한다', () async {
+    test('수정은 score·comment를 함께 보내고 result의 Rating으로 교체한다', () async {
       await viewModel.updateRating(ratingId: 1, score: 3, comment: null);
+      await pumpEventQueue();
 
-      expect(service.updates, [(7, 1, 3, null)]);
-      expect(service.requestedIds, [7]);
-      expect(viewModel.status, MyRatingsLoadStatus.success);
+      expect(service.updates, [(1, 3, null)]);
+      final updated = viewModel.ratings.single.rating;
+      expect(updated.score, 3);
+      expect(updated.comment, isNull);
+      expect(updated.updatedAt, DateTime.utc(2026, 11, 16));
     });
 
-    test('마지막 항목을 삭제하면 재조회 결과로 Empty가 된다', () async {
-      service.ratings = const [];
-
+    test('마지막 항목을 삭제하면 Empty가 된다', () async {
       await viewModel.deleteRating(1);
+      await pumpEventQueue();
 
-      expect(service.deletes, [(7, 1)]);
+      expect(service.deletes, [1]);
       expect(viewModel.status, MyRatingsLoadStatus.empty);
     });
 
-    test('쓰기 성공 뒤 GET만 실패하면 던지지 않고 재조회 안내를 남기며, GET만 재시도한다', () async {
-      service.error = _statusError(500);
-
-      await viewModel.deleteRating(1);
-
-      expect(viewModel.status, MyRatingsLoadStatus.error);
-      expect(viewModel.refreshWarning, contains('저장은 완료됐지만'));
-
-      service.error = null;
-      await viewModel.load();
-
-      expect(service.deletes.length, 1); // DELETE는 반복하지 않는다
-      expect(viewModel.status, MyRatingsLoadStatus.success);
-      expect(viewModel.refreshWarning, isNull);
-    });
-
-    test('400은 서버 문구를 던지고 다시 조회하지 않는다', () async {
-      service.writeError = _writeError(400, '별점은 5점 이하여야 합니다.');
+    test('400은 서버 문구를 던지고 목록은 그대로 둔다', () async {
+      service.writeError = apiError(400, 'COMMON400');
 
       await expectLater(
         viewModel.updateRating(ratingId: 1, score: 3),
-        throwsMessage('별점은 5점 이하여야 합니다.'),
+        throwsMessage('COMMON400 메시지'),
       );
 
-      expect(service.requestedIds, isEmpty);
+      expect(store.ratings.single.score, 4);
     });
 
-    test('403·404는 서로 다른 서버 문구를 던지고 목록을 다시 조회한다', () async {
-      service.writeError = _writeError(403, '본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.');
-      await expectLater(
-        viewModel.deleteRating(1),
-        throwsMessage('본인이 작성한 평점만 수정하거나 삭제할 수 있습니다.'),
-      );
-      expect(service.requestedIds.length, 1);
+    test('RATING403_1은 안내만 하고 로그인 상태와 목록을 유지한다', () async {
+      service.writeError = apiError(403, 'RATING403_1');
 
-      service.writeError = _writeError(404, '존재하지 않는 평점입니다.');
       await expectLater(
         viewModel.deleteRating(1),
-        throwsMessage('존재하지 않는 평점입니다.'),
+        throwsMessage('본인이 작성한 평점만 수정하거나 삭제할 수 있어요.'),
       );
-      expect(service.requestedIds.length, 2);
+
+      expect(auth.status, AuthStatus.signedIn);
+      expect(store.ratings, hasLength(1));
     });
 
-    test('화면을 떠난 뒤 끝난 쓰기는 목록을 다시 조회하지 않는다', () async {
-      viewModel.dispose();
+    test('RATING404_1은 안내하고 이미 없는 평점을 목록에서 뺀다', () async {
+      service.writeError = apiError(404, 'RATING404_1');
 
-      await viewModel.deleteRating(1);
+      await expectLater(
+        viewModel.updateRating(ratingId: 1, score: 3),
+        throwsMessage('이미 삭제되었거나 존재하지 않는 평점이에요.'),
+      );
 
-      expect(service.requestedIds, isEmpty);
+      expect(store.ratings, isEmpty);
+    });
+
+    test('AUTH401_4는 세션을 정리하고 만료 문구를 던진다', () async {
+      service.writeError = apiError(401, 'AUTH401_4');
+
+      await expectLater(
+        viewModel.deleteRating(1),
+        throwsMessage('로그인이 만료됐어요. 다시 로그인해 주세요.'),
+      );
+
+      expect(auth.status, AuthStatus.signedOut);
+      expect(auth.sessionExpired, isTrue);
+    });
+
+    test('로그아웃 뒤 늦게 도착한 삭제 응답은 새 세션 목록을 건드리지 않는다', () async {
+      final gate = Completer<void>();
+      service.deleteGate = gate;
+
+      final pending = viewModel.deleteRating(1);
+      await auth.logout();
+      await auth.login('new@b.com', 'pw');
+      addToSession([_rating(9, 13)]);
+      gate.complete();
+      await pending;
+
+      expect(store.ratings.single.ratingId, 9); // 새 세션의 목록은 그대로
     });
   });
 
   group('다중 삭제', () {
-    late _FakeRatingApiService service;
     late MyRatingsViewModel viewModel;
 
     setUp(() async {
-      service = _FakeRatingApiService(
-        ratings: [_rating(1, 550), _rating(2, 13), _rating(3, 680)],
-      );
-      viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 7);
+      addToSession([_rating(1, 550), _rating(2, 13), _rating(3, 680)]);
+      viewModel = createViewModel();
       await viewModel.load();
       viewModel
         ..enterSelectionMode()
@@ -324,65 +302,51 @@ void main() {
       expect(viewModel.selectedRatingIds, isEmpty);
     });
 
-    test('모두 성공하면 선택 모드를 끝내고 재조회가 끝날 때 로딩을 해제한다', () async {
-      service.gate = Completer<void>();
-      service.ratings = [_rating(3, 680)];
+    test('모두 성공하면 선택 모드를 끝내고 삭제가 끝날 때 로딩을 해제한다', () async {
+      service.deleteGate = Completer<void>();
 
       final future = viewModel.deleteSelectedRatings();
       expect(viewModel.isDeletingSelected, isTrue);
-      await pumpEventQueue();
-      expect(viewModel.isDeletingSelected, isTrue); // GET 대기 중에도 유지
 
-      service.gate!.complete();
+      service.deleteGate!.complete();
       expect(await future, 0);
+      await pumpEventQueue();
 
-      expect(service.deletes, [(7, 1), (7, 2)]);
+      expect(service.deletes, [1, 2]);
       expect(viewModel.isDeletingSelected, isFalse);
       expect(viewModel.isSelectionMode, isFalse);
-      expect(viewModel.ratings.length, 1);
+      expect(viewModel.ratings.single.rating.ratingId, 3);
     });
 
     test('일부만 실패하면 실패 수를 돌려주고 남은 항목의 선택을 유지한다', () async {
-      service
-        ..failingDeleteIds = {2}
-        ..ratings = [_rating(2, 13), _rating(3, 680)];
+      service.failingDeleteIds = {2};
 
       expect(await viewModel.deleteSelectedRatings(), 1);
+      await pumpEventQueue();
 
       expect(viewModel.selectedRatingIds, {2});
       expect(viewModel.isSelectionMode, isTrue);
       expect(viewModel.ratings.length, 2);
     });
 
-    test('실패했지만 재조회 결과에 없는 항목은 선택에서 뺀다', () async {
-      service
-        ..failingDeleteIds = {2}
-        ..ratings = [_rating(3, 680)];
-
-      expect(await viewModel.deleteSelectedRatings(), 1);
-
-      expect(viewModel.selectedRatingIds, isEmpty);
-      expect(viewModel.isSelectionMode, isFalse);
-    });
-
-    test('삭제 성공 뒤 GET만 실패하면 재조회 안내를 남기고 로딩을 해제한다', () async {
-      service.error = _statusError(500);
+    test('서버에 이미 없는 항목(RATING404_1)은 실패로 세지 않고 목록에서 뺀다', () async {
+      service.deleteErrors = {2: apiError(404, 'RATING404_1')};
 
       expect(await viewModel.deleteSelectedRatings(), 0);
 
-      expect(viewModel.status, MyRatingsLoadStatus.error);
-      expect(viewModel.refreshWarning, contains('저장은 완료됐지만'));
-      expect(viewModel.isDeletingSelected, isFalse);
+      expect(viewModel.selectedRatingIds, isEmpty);
+      expect(viewModel.isSelectionMode, isFalse);
+      expect(store.ratings.single.ratingId, 3);
     });
 
-    test('모두 실패하면 저장 완료 안내를 보여주지 않는다', () async {
-      service
-        ..failingDeleteIds = {1, 2}
-        ..error = _statusError(500);
+    test('도중에 세션이 만료되면 남은 항목을 보내지 않는다', () async {
+      service.deleteErrors = {1: apiError(401, 'AUTH401_3')};
 
       expect(await viewModel.deleteSelectedRatings(), 2);
 
-      expect(viewModel.refreshWarning, isNull);
+      expect(service.deletes, [1]);
+      expect(auth.status, AuthStatus.signedOut);
+      expect(viewModel.isDeletingSelected, isFalse);
     });
   });
 }

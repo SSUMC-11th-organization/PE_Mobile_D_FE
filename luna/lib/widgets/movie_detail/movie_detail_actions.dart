@@ -9,10 +9,12 @@ class MovieDetailActions extends StatelessWidget {
     required this.onFavoritePressed,
     required this.canRate,
     required this.onRatePressed,
+    this.rateLabel = '평점 남기기',
   });
 
   final bool isFavorite;
-  final bool canRate; // 학습용 회원가입을 마쳐 memberId가 있을 때만 true
+  final bool canRate; // 이번 세션에서 아직 이 영화에 평점을 등록하지 않았을 때만 true
+  final String rateLabel;
   final VoidCallback onFavoritePressed;
   final VoidCallback onRatePressed;
 
@@ -52,7 +54,7 @@ class MovieDetailActions extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: canRate ? onRatePressed : null,
                   icon: const Icon(Icons.rate_review_outlined),
-                  label: Text(canRate ? '평점 남기기' : '회원가입 필요'),
+                  label: Text(rateLabel),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(_buttonHeight),
                     shape: const StadiumBorder(),

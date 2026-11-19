@@ -6,7 +6,8 @@ int validateServerScore(double value) {
   return value.toInt();
 }
 
-/// 평점 등록 요청 body(POST /v6/members/{memberId}/ratings).
+/// 평점 등록 요청 body(POST /v7/ratings).
+/// 사용자는 Authorization 토큰으로 식별하므로 memberId를 body에 넣지 않는다.
 class CreateRatingRequest {
   const CreateRatingRequest({
     required this.movieId,

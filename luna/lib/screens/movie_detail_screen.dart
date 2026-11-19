@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/rating_dto.dart';
 import '../data/models/tmdb_movie_detail_dto.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/submit_status.dart';
@@ -10,6 +11,7 @@ import '../widgets/common/tmdb_poster_image.dart';
 import '../widgets/movie_detail/movie_detail_actions.dart';
 import '../widgets/movie_detail/movie_info_section.dart';
 import '../widgets/movie_detail/movie_synopsis.dart';
+import '../widgets/movie_detail/my_rating_card.dart';
 import '../widgets/movie_detail/rating_dialog.dart';
 import '../widgets/movie_list/movie_list_error.dart';
 
@@ -44,7 +46,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           await viewModel.createRating(score: score, comment: comment);
           if (viewModel.submitStatus != SubmitStatus.success) {
             final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
-            _showSnackBar(message);
+            // 만료(401)는 Router가 로그인 화면으로 보내므로 이 화면에 안내를 남기지 않는다.
+            // 403·409 등은 어떤 오류인지 Snackbar로 안내하고 로그인 상태를 유지한다
+            if (!viewModel.sessionExpired) _showSnackBar(message);
             throw StateError(message); // Dialog를 유지해 입력을 보존한다
           }
         },
@@ -52,7 +56,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     );
     if (!mounted || saved != true) return;
 
-    _showSnackBar('평점을 등록했습니다. 마이페이지의 "내가 등록한 평점"에서 확인할 수 있습니다.');
+    _showSnackBar('평점을 등록했습니다.');
   }
 
   void _showSnackBar(String message) {
@@ -105,7 +109,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         bottomNavigationBar: isLoaded
             ? MovieDetailActions(
                 isFavorite: _isFavorite,
-                canRate: viewModel.memberId != null,
+                canRate: viewModel.canRate,
+                rateLabel: viewModel.createdRating == null
+                    ? '평점 남기기'
+                    : '평점 등록 완료',
                 onFavoritePressed: _toggleFavorite,
                 onRatePressed: _openRatingDialog,
               )
@@ -115,6 +122,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Widget _buildContent(TmdbMovieDetailDto movie) {
+    final createdRating = context.select<MovieDetailViewModel, RatingDto?>(
+      (viewModel) => viewModel.createdRating,
+    );
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -127,6 +138,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
             child: MovieInfoSection(movie: movie),
           ),
+          // 등록 응답의 Rating 객체로 그리는 현재 세션의 내 평점 카드
+          if (createdRating != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: MyRatingCard(rating: createdRating),
+            ),
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),

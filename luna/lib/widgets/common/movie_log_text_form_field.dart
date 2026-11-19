@@ -17,6 +17,7 @@ class MovieLogTextFormField extends StatefulWidget {
     this.keyboardType,
     this.textInputAction,
     this.isPassword = false,
+    this.enabled = true,
     this.onChanged,
     this.onFieldSubmitted,
     this.errorText,
@@ -34,6 +35,7 @@ class MovieLogTextFormField extends StatefulWidget {
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final bool isPassword; // true면 입력값을 가리고 표시·숨김 버튼을 보여줌
+  final bool enabled; // false면 통신 중처럼 입력을 막는다
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
   // validator를 통과해도 이 값이 있으면 에러 상태로 표시 (예: 이미 사용 중인 닉네임)
@@ -123,6 +125,7 @@ class _MovieLogTextFormFieldState extends State<MovieLogTextFormField> {
       focusNode: widget.focusNode,
       keyboardType: widget.keyboardType,
       textInputAction: widget.textInputAction,
+      enabled: widget.enabled,
       obscureText: _obscured,
       decoration: InputDecoration(
         hintText: widget.hintText,

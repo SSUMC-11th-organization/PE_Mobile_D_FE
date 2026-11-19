@@ -7,12 +7,21 @@ class ProfileHeader extends StatelessWidget {
     super.key,
     this.imagePath, // null이면 기본 Icon을 표시
     required this.name,
-    required this.bio,
+    required this.email,
+    this.joinedAt,
   });
+
+  /// 가입일을 "2026.10.10 가입" 형식으로 바꾼다. 서버의 UTC 시각을 기기 날짜로 표시한다.
+  static String formatJoinedAt(DateTime createdAt) {
+    final local = createdAt.toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${local.year}.${two(local.month)}.${two(local.day)} 가입';
+  }
 
   final String? imagePath;
   final String name;
-  final String bio;
+  final String email; // GET me로 받은 이메일
+  final DateTime? joinedAt; // GET me의 createdAt. null이면 표시하지 않는다
 
   @override
   Widget build(BuildContext context) {
@@ -49,10 +58,22 @@ class ProfileHeader extends StatelessWidget {
           style: textTheme.headlineMedium,
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        if (joinedAt case final joinedAt?) ...[
+          const SizedBox(height: 4),
+          Text(
+            formatJoinedAt(joinedAt),
+            style: textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 4),
         Text(
-          bio,
-          style: textTheme.bodyMedium?.copyWith(height: 24 / 14),
+          email,
+          style: textTheme.bodyLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
       ],

@@ -9,7 +9,6 @@ import 'package:movielog/data/models/sign_up_models.dart';
 import 'package:movielog/data/services/sign_up_service.dart';
 import 'package:movielog/screens/sign_up_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
-import 'package:movielog/view_models/learning_member_session.dart';
 import 'package:movielog/view_models/sign_up_view_model.dart';
 import 'package:movielog/widgets/common/movie_log_button.dart';
 import 'package:provider/provider.dart';
@@ -124,7 +123,6 @@ void main() {
         theme: AppTheme.light,
         home: MultiProvider(
           providers: [
-            ChangeNotifierProvider(create: (_) => LearningMemberSession()),
             ChangeNotifierProvider(create: (_) => SignUpViewModel(service)),
           ],
           child: const SignUpScreen(),

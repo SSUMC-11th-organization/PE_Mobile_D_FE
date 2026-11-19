@@ -10,50 +10,51 @@ import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/screens/my_ratings_screen.dart';
 import 'package:movielog/theme/app_theme.dart';
 import 'package:movielog/view_models/my_ratings_view_model.dart';
+import 'package:movielog/view_models/session_rating_store.dart';
 import 'package:movielog/widgets/common/movie_log_button.dart';
 import 'package:movielog/widgets/my_ratings/my_ratings_states.dart';
 import 'package:provider/provider.dart';
 
-class _FakeRatingApiService extends RatingApiService {
-  _FakeRatingApiService({this.ratings = const [], this.error}) : super(Dio());
+import '../helpers/fake_auth.dart';
 
-  List<RatingDto> ratings;
-  Exception? error;
+/// v7 PATCH/DELETE만 흉내 낸다. 목록은 SessionRatingStore가 들고 있다.
+class _FakeRatingApiService extends RatingApiService {
+  _FakeRatingApiService() : super(Dio(), Dio());
+
+  Object? writeError;
   final updates = <(int, int, String?)>[];
   final deletes = <int>[];
   Completer<void>? deleteGate;
   Set<int> failingDeleteIds = {};
 
   @override
-  Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    if (error != null) throw error!;
-    return ratings;
-  }
-
-  @override
-  Future<void> updateRating({
-    required int memberId,
+  Future<RatingDto> updateRating({
     required int ratingId,
     required int score,
     String? comment,
   }) async {
     updates.add((ratingId, score, comment));
+    if (writeError != null) throw writeError!;
+    final original = _ratings.firstWhere((item) => item.ratingId == ratingId);
+    return RatingDto(
+      ratingId: ratingId,
+      movieId: original.movieId,
+      score: score,
+      comment: comment,
+      createdAt: original.createdAt,
+    );
   }
 
   @override
-  Future<void> deleteRating({
-    required int memberId,
-    required int ratingId,
-  }) async {
+  Future<void> deleteRating(int ratingId) async {
     deletes.add(ratingId);
     await deleteGate?.future;
     if (failingDeleteIds.contains(ratingId)) {
       throw DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v6/members/1/ratings/1'),
+        requestOptions: RequestOptions(path: '/v7/ratings/$ratingId'),
         reason: 'offline',
       );
     }
-    ratings = ratings.where((item) => item.ratingId != ratingId).toList();
   }
 }
 
@@ -84,11 +85,23 @@ final _ratings = [
   ),
 ];
 
+/// 이번 세션에서 [ratings]를 등록한 상태로 화면을 띄운다.
 Future<MyRatingsViewModel> _pumpScreen(
   WidgetTester tester,
-  RatingApiService service,
-) async {
-  final viewModel = MyRatingsViewModel(service, _FakeTmdbMovieService(), 1);
+  RatingApiService service, {
+  List<RatingDto> ratings = const [],
+}) async {
+  final auth = signedInAuth();
+  final store = SessionRatingStore(auth);
+  for (final rating in ratings.reversed) {
+    store.add(rating, sessionVersion: auth.sessionVersion);
+  }
+  final viewModel = MyRatingsViewModel(
+    service,
+    _FakeTmdbMovieService(),
+    store,
+    auth,
+  );
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light,
@@ -107,7 +120,8 @@ void main() {
   ) async {
     final viewModel = await _pumpScreen(
       tester,
-      _FakeRatingApiService(ratings: _ratings),
+      _FakeRatingApiService(),
+      ratings: _ratings,
     );
 
     // 첫 요청 전(idle)과 요청 중(loading)에는 Loading을 보여준다
@@ -125,6 +139,8 @@ void main() {
     expect(find.text('내가 등록한 평점'), findsOneWidget);
     expect(find.bySemanticsLabel('뒤로가기'), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+    // 재시작 뒤 기존 평점 전체를 복원하지 않는다는 한계를 화면에 알린다
+    expect(find.text(SessionScopeNotice.message), findsOneWidget);
   });
 
   testWidgets('평점이 없으면 Empty를 보여준다', (tester) async {
@@ -136,26 +152,6 @@ void main() {
     expect(find.text(MyRatingsEmpty.message), findsOneWidget);
   });
 
-  testWidgets('실패하면 상태 코드별 문구와 다시 시도 버튼을 보여준다', (tester) async {
-    final options = RequestOptions(path: '/v6/members/1/ratings');
-    final viewModel = await _pumpScreen(
-      tester,
-      _FakeRatingApiService(
-        error: DioException.badResponse(
-          statusCode: 404,
-          requestOptions: options,
-          response: Response(requestOptions: options, statusCode: 404),
-        ),
-      ),
-    );
-
-    await viewModel.load();
-    await tester.pump();
-
-    expect(find.text('존재하지 않는 회원입니다.'), findsOneWidget);
-    expect(find.text('다시 시도'), findsOneWidget);
-  });
-
   group('평점 수정·삭제', () {
     Future<_FakeRatingApiService> pumpLoaded(WidgetTester tester) async {
       // 디자인 기준 너비에서 카드의 버튼이 넘치지 않는지도 함께 확인한다
@@ -163,8 +159,12 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      final service = _FakeRatingApiService(ratings: [_ratings.first]);
-      final viewModel = await _pumpScreen(tester, service);
+      final service = _FakeRatingApiService();
+      final viewModel = await _pumpScreen(
+        tester,
+        service,
+        ratings: [_ratings.first],
+      );
       await viewModel.load();
       await tester.pump();
       return service;
@@ -212,21 +212,17 @@ void main() {
       expect(find.text(MyRatingsEmpty.message), findsOneWidget);
     });
 
-    testWidgets('쓰기 성공 뒤 재조회만 실패하면 저장 완료 안내와 다시 시도를 보여준다', (tester) async {
+    testWidgets('RATING403_1이면 Dialog를 유지하고 안내 문구를 보여준다', (tester) async {
       final service = await pumpLoaded(tester);
+      service.writeError = apiError(403, 'RATING403_1');
 
-      await tester.tap(find.text('삭제'));
+      await tester.tap(find.text('수정'));
       await tester.pumpAndSettle();
-      service.error = DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v6/members/1/ratings'),
-        reason: 'offline',
-      );
-      await tester.tap(find.widgetWithText(MovieLogButton, '삭제'));
+      await tester.tap(find.text('확인'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('저장은 완료됐지만'), findsOneWidget);
-      expect(find.text('다시 시도'), findsOneWidget);
-      expect(service.deletes.length, 1);
+      expect(find.text('본인이 작성한 평점만 수정하거나 삭제할 수 있어요.'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget); // Dialog와 입력 유지
     });
   });
 
@@ -236,8 +232,8 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      final service = _FakeRatingApiService(ratings: List.of(_ratings));
-      final viewModel = await _pumpScreen(tester, service);
+      final service = _FakeRatingApiService();
+      final viewModel = await _pumpScreen(tester, service, ratings: _ratings);
       await viewModel.load();
       await tester.pump();
       await tester.tap(find.text('편집'));
