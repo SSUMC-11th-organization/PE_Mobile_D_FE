@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
+import '../widgets/favorite_button.dart';
 import '../view_models/sign_up_view_model.dart' show SubmitStatus;
 import '../widgets/rating_dialog.dart';
 import '../widgets/tmdb_poster_image.dart';
@@ -19,16 +21,12 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool _isFavorite = false;
-
-  void _toggleFavorite() {
-    setState(() => _isFavorite = !_isFavorite);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteDetailViewModel>().load();
+    });
   }
 
   Future<void> _openRatingDialog() async {
@@ -88,14 +86,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(movie.title, style: AppTextStyles.titleLarge),
-                  const SizedBox(height: 4),
-                  if (movie.releaseDate != null &&
-                      movie.releaseDate!.length >= 4)
-                    Text(
-                      movie.releaseDate!.substring(0, 4),
-                      style: const TextStyle(color: AppColors.gray),
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(movie.title, style: AppTextStyles.titleLarge),
+                            const SizedBox(height: 4),
+                            if (movie.releaseDate != null &&
+                                movie.releaseDate!.length >= 4)
+                              Text(
+                                movie.releaseDate!.substring(0, 4),
+                                style: const TextStyle(color: AppColors.gray),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const FavoriteButton(),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -128,27 +139,6 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _toggleFavorite,
-                          icon: Icon(
-                            _isFavorite
-                                ? Icons.bookmark
-                                : Icons.bookmark_border,
-                            color: AppColors.violet,
-                          ),
-                          label: Text(_isFavorite ? '즐겨찾기됨' : '즐겨찾기'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.violet,
-                            side: const BorderSide(color: AppColors.violet),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _openRatingDialog,

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../theme/app_colors.dart';
-import '../view_models/movie_list_view_model.dart';
+import '../view_models/load_phase.dart';
+import '../view_models/paged_movies_view_model.dart';
 import '../widgets/movie_grid.dart';
 import '../widgets/movie_list_states.dart';
+import '../widgets/movie_page_footer.dart';
 
 class MovieListScreen extends StatelessWidget {
   const MovieListScreen({super.key});
@@ -14,16 +17,21 @@ class MovieListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('영화', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [IconButton(onPressed: () {}, icon: const Icon(Icons.search))],
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/movies/search'),
+            icon: const Icon(Icons.search),
+          ),
+        ],
       ),
       body: Column(
         children: [
           // 장르 Chip: 요청 중에는 선택하지 못하게 막는다.
-          Consumer<MovieListViewModel>(
+          Consumer<PagedMoviesViewModel>(
             builder: (context, viewModel, child) {
               final isLoading =
-                  viewModel.status == MovieListLoadStatus.idle ||
-                  viewModel.status == MovieListLoadStatus.loading;
+                  viewModel.phase == LoadPhase.idle ||
+                  viewModel.phase == LoadPhase.loading;
               final chips = <({int? id, String name})>[
                 (id: null, name: '전체'),
                 for (final genre in viewModel.genres)
@@ -47,8 +55,8 @@ class MovieListScreen extends StatelessWidget {
                       onSelected: isLoading
                           ? null
                           : (_) => context
-                                .read<MovieListViewModel>()
-                                .selectGenre(chip.id),
+                                .read<PagedMoviesViewModel>()
+                                .loadInitial(genreId: chip.id),
                       selectedColor: AppColors.violet,
                       labelStyle: TextStyle(
                         color: isSelected ? AppColors.white : AppColors.black,
@@ -67,21 +75,21 @@ class MovieListScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: Consumer<MovieListViewModel>(
+            child: Consumer<PagedMoviesViewModel>(
               builder: (context, viewModel, child) {
-                return switch (viewModel.status) {
-                  MovieListLoadStatus.idle ||
-                  MovieListLoadStatus.loading => const MovieListLoading(),
-                  MovieListLoadStatus.error => MovieListError(
-                    message: viewModel.message,
-                    // 장르 목록이 없으면 처음부터, 있으면 선택된 장르로 재요청
-                    onRetry: () => viewModel.genres.isEmpty
-                        ? viewModel.loadInitial()
-                        : viewModel.selectGenre(viewModel.selectedGenreId),
+                return switch (viewModel.phase) {
+                  LoadPhase.idle ||
+                  LoadPhase.loading => const MovieListLoading(),
+                  LoadPhase.error => MovieListError(
+                    message: viewModel.errorMessage,
+                    onRetry: () => viewModel.loadInitial(
+                      genreId: viewModel.selectedGenreId,
+                    ),
                   ),
-                  MovieListLoadStatus.empty => const MovieListEmpty(),
-                  MovieListLoadStatus.success => MovieGrid(
+                  LoadPhase.empty => const MovieListEmpty(),
+                  LoadPhase.ready => MovieGrid(
                     movies: viewModel.movies,
+                    footer: MoviePageFooter(vm: viewModel),
                   ),
                 };
               },

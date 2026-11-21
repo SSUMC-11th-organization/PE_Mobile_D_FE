@@ -166,6 +166,13 @@ class ProfileScreen extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/my/ratings'),
             ),
+            ListTile(
+              title: const Text('내 즐겨찾기'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: member == null
+                  ? null
+                  : () => context.push('/my/favorites'),
+            ),
 
             const SizedBox(height: 16),
 
