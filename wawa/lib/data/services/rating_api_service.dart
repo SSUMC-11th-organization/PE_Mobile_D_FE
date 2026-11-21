@@ -33,12 +33,12 @@ class RatingApiService {
   void clearSessionRatings() => _sessionRatings.clear();
 
   Future<List<RatingDto>> fetchMyRatings(int memberId) async {
-    final response = await _publicDio.get('/v7/members/$memberId/ratings');
+    final response = await _publicDio.get('/v8/members/$memberId/ratings');
     return parseRatingList(response.data); // 공개 조회: 직접 배열, 토큰 없음
   }
 
   Future<RatingDto> createRating(CreateRatingRequest request) async {
-    final response = await _authDio.post('/v7/ratings', data: request.toJson());
+    final response = await _authDio.post('/v8/ratings', data: request.toJson());
     final rating = parseRatingResult(response.data);
     _sessionRatings.insert(0, rating);
     return rating;
@@ -52,7 +52,7 @@ class RatingApiService {
     String? comment,
   }) async {
     final response = await _authDio.patch(
-      '/v7/ratings/$ratingId',
+      '/v8/ratings/$ratingId',
       data: {'score': score, 'comment': comment},
     );
     final rating = parseRatingResult(response.data);
@@ -62,7 +62,7 @@ class RatingApiService {
   }
 
   Future<void> deleteRating(int ratingId) async {
-    final response = await _authDio.delete('/v7/ratings/$ratingId');
+    final response = await _authDio.delete('/v8/ratings/$ratingId');
     if (response.statusCode != 200) throw StateError('예상하지 못한 삭제 응답');
     _sessionRatings.removeWhere((r) => r.ratingId == ratingId);
   }
