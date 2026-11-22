@@ -11,6 +11,7 @@ import 'core/storage/token_storage.dart';
 import 'data/services/auth_api_service.dart';
 import 'data/services/favorite_api_service.dart';
 import 'data/services/member_api_service.dart';
+import 'data/services/movie_record_api_service.dart';
 import 'data/services/rating_api_service.dart';
 import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
@@ -56,6 +57,10 @@ class MovieLogApp extends StatelessWidget {
         // 보호 Client: 즐겨찾기 등록·목록·여부·해제(JWT로 사용자 구분, memberId 없음)
         Provider<FavoriteApiService>(
           create: (_) => FavoriteApiService(authClient),
+        ),
+        // 보호 Client: 평점·즐겨찾기 통합 저장(Challenge)
+        Provider<MovieRecordApiService>(
+          create: (_) => MovieRecordApiService(authClient),
         ),
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(

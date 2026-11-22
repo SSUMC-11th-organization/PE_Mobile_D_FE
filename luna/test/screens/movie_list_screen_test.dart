@@ -20,6 +20,7 @@ class _FakeTmdbMovieService extends TmdbMovieService {
 
   bool fail = false;
   int totalPages = 1;
+  int perPage = 1;
   final failPages = <int>{};
   final withGenres = <String?>[];
   final pages = <int>[];
@@ -44,18 +45,26 @@ class _FakeTmdbMovieService extends TmdbMovieService {
     return TmdbMoviePageDto(
       page: page,
       results: [
-        TmdbMovieDto(
-          id: (genreIds == null ? 1 : 100 + genreIds.length) + page * 1000,
-          // 첫 page는 기존 제목을 유지하고, 다음 page는 page 번호를 붙인다
-          title: page == 1 ? '영화(${key ?? '전체'})' : '영화(${key ?? '전체'}) p$page',
-          overview: '',
-          posterPath: null,
-          backdropPath: null,
-          releaseDate: '2024-01-01',
-          genreIds: const [18],
-          voteAverage: 7,
-          popularity: 0,
-        ),
+        for (var i = 0; i < perPage; i++)
+          TmdbMovieDto(
+            id:
+                (genreIds == null ? 1 : 100 + genreIds.length) +
+                page * 1000 +
+                i,
+            // 첫 page는 기존 제목을 유지하고, 다음 page는 page 번호를, 두 번째 카드부터는 순번을 붙인다
+            title:
+                (page == 1
+                    ? '영화(${key ?? '전체'})'
+                    : '영화(${key ?? '전체'}) p$page') +
+                (i == 0 ? '' : ' #$i'),
+            overview: '',
+            posterPath: null,
+            backdropPath: null,
+            releaseDate: '2024-01-01',
+            genreIds: const [18],
+            voteAverage: 7,
+            popularity: 0,
+          ),
       ],
       totalPages: totalPages,
       totalResults: totalPages,
@@ -180,28 +189,52 @@ void main() {
     expect(service.withGenres, [null]);
   });
 
-  testWidgets('더 보기로 다음 page를 붙이고, 실패하면 같은 page를 다시 시도하며, 마지막 page에서는 숨긴다', (
-    tester,
-  ) async {
-    service.totalPages = 2;
+  testWidgets('더 보기 버튼 없이 목록 끝에 닿으면 다음 page를 자동으로 붙인다', (tester) async {
+    service.totalPages = 3;
     await pumpScreen(tester);
-    expect(find.text('모든 영화를 확인했습니다.'), findsNothing);
 
-    service.failPages.add(2);
-    await tester.tap(find.text('더 보기'));
-    await tester.pumpAndSettle();
+    // 한 page가 화면을 다 채우지 못하므로 스크롤 없이도 끝까지 이어서 불러온다
+    expect(find.text('더 보기'), findsNothing);
+    expect(service.pages, [1, 2, 3]);
+    expect(find.text('영화(전체) p3'), findsOneWidget);
+    expect(find.text('모든 영화를 확인했습니다.'), findsOneWidget);
+  });
+
+  testWidgets('추가 조회가 실패하면 자동 반복 없이 같은 page를 다시 시도하는 버튼을 보여준다', (tester) async {
+    service
+      ..totalPages = 3
+      ..failPages.add(2);
+    await pumpScreen(tester);
 
     expect(find.text('추가 영화 조회에 실패했습니다.'), findsOneWidget);
     expect(find.text('영화(전체)'), findsOneWidget); // 기존 카드 유지
+    expect(service.pages, [1, 2]); // 실패 뒤 스스로 반복 요청하지 않는다
 
     service.failPages.clear();
     await tester.tap(find.widgetWithText(MovieLogButton, '다음 페이지 다시 시도'));
     await tester.pumpAndSettle();
 
-    expect(service.pages, [1, 2, 2]); // 같은 page를 다시 요청
+    expect(service.pages, [1, 2, 2, 3]); // 같은 page부터 다시 요청
     expect(find.text('영화(전체) p2'), findsOneWidget);
     expect(find.text('모든 영화를 확인했습니다.'), findsOneWidget);
-    expect(find.text('더 보기'), findsNothing);
+  });
+
+  testWidgets('화면을 채운 뒤에는 스크롤이 끝에 가까워질 때만 다음 page를 요청한다', (tester) async {
+    service
+      ..totalPages = 5
+      ..perPage = 10;
+    await pumpScreen(tester);
+    expect(service.pages, [1]);
+
+    await tester.fling(
+      find.byType(CustomScrollView),
+      const Offset(0, -3000),
+      3000,
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.pages.length, greaterThan(1));
+    expect(service.pages, [for (var i = 1; i <= service.pages.length; i++) i]);
   });
 
   testWidgets('당겨서 새로고침하면 현재 장르로 다시 요청한다', (tester) async {

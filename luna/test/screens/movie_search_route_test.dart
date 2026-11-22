@@ -42,10 +42,6 @@ void main() {
     final app = await _openSearch(tester);
 
     await tester.enterText(find.byType(TextField), '별빛');
-    // 입력만으로는 요청하지 않는다(Required: 제출할 때만 요청)
-    await tester.pump(const Duration(seconds: 1));
-    expect(app.tmdb.searchQueries, isEmpty);
-
     await tester.tap(find.text('검색'));
     await tester.pumpAndSettle();
 
@@ -85,5 +81,49 @@ void main() {
 
     expect(app.tmdb.searchQueries.last, '별빛');
     expect(find.text('별빛 산책'), findsOneWidget);
+  });
+
+  testWidgets('입력이 500ms 멈추면 마지막 검색어로 한 번만 검색한다(debounce)', (tester) async {
+    final app = await _openSearch(tester);
+
+    for (final text in ['어', '어벤', '어벤져', '어벤져스']) {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(app.tmdb.searchQueries, isEmpty); // 입력 중에는 요청하지 않는다
+
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(app.tmdb.searchQueries, ['어벤져스']);
+  });
+
+  testWidgets('공백만 입력하면 debounce 뒤에도 요청하지 않고, 제출하면 대기 중인 자동 검색을 취소한다', (
+    tester,
+  ) async {
+    final app = await _openSearch(tester);
+
+    await tester.enterText(find.byType(TextField), '   ');
+    await tester.pump(const Duration(seconds: 1));
+    expect(app.tmdb.searchQueries, isEmpty);
+
+    await tester.enterText(find.byType(TextField), '별빛');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(app.tmdb.searchQueries, ['별빛']); // 제출 1번만, 타이머 요청 없음
+  });
+
+  testWidgets('검색 화면을 벗어나면 대기 중인 타이머가 요청을 보내지 않는다', (tester) async {
+    final app = await _openSearch(tester);
+
+    await tester.enterText(find.byType(TextField), '별빛');
+    await tester.tap(find.bySemanticsLabel('뒤로가기'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.byType(MovieSearchScreen), findsNothing);
+    expect(app.tmdb.searchQueries, isEmpty);
   });
 }

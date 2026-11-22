@@ -29,6 +29,16 @@ class _MovieListScreenState extends State<MovieListScreen> {
   // 재시도 Dialog의 "다시 시도"를 당겨서 새로고침과 같은 표시로 보여주기 위해 사용
   final _refreshKey = GlobalKey<RefreshIndicatorState>();
 
+  /// 남은 스크롤 거리가 이 값 이하가 되면 다음 page를 미리 불러온다(무한 스크롤)
+  static const loadMoreThreshold = 400.0;
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_maybeLoadNextPage);
+  }
+
   MovieListViewModel? _viewModel;
   bool _isRetryDialogOpen = false;
 
@@ -46,12 +56,36 @@ class _MovieListScreenState extends State<MovieListScreen> {
   @override
   void dispose() {
     _viewModel?.removeListener(_handleViewModelChanged);
+    _scrollController
+      ..removeListener(_maybeLoadNextPage)
+      ..dispose();
     super.dispose();
   }
 
   void _handleViewModelChanged() {
+    // 첫 page가 화면을 다 채우지 못하면 스크롤할 수 없으므로, 그려진 뒤 한 번 더 확인한다
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeLoadNextPage();
+    });
     if (_isRetryDialogOpen || !_viewModel!.takeRetryPrompt()) return;
     _showRetryDialog();
+  }
+
+  // 목록 끝에 가까워지면 다음 page를 요청한다. 중복 요청(추가 로딩 중·마지막 page·새로고침 중)은
+  // PagedMoviesViewModel.loadNextPage가 그대로 막는다.
+  // 추가 조회가 실패한 뒤에는 자동으로 반복하지 않고 footer의 재시도 버튼을 기다린다
+  void _maybeLoadNextPage() {
+    final viewModel = _viewModel;
+    // 아직 레이아웃 전이거나 상세 화면 아래로 가려진 경우에는 스크롤 크기를 알 수 없다
+    if (viewModel == null ||
+        viewModel.loadMoreError != null ||
+        !_scrollController.hasClients ||
+        !_scrollController.position.hasContentDimensions) {
+      return;
+    }
+    if (_scrollController.position.extentAfter <= loadMoreThreshold) {
+      viewModel.loadNextPage();
+    }
   }
 
   Future<void> _showRetryDialog() async {
@@ -175,8 +209,9 @@ class _MovieListScreenState extends State<MovieListScreen> {
                       MovieGrid(
                         movies: viewModel.sortedMovies,
                         genreNameOf: viewModel.genreNameOf,
-                        // 첫 page만 보여주고 카드 아래 footer로 다음 page를 이어 붙인다
-                        footer: MoviePageFooter(vm: viewModel),
+                        controller: _scrollController,
+                        // 더 보기 버튼 대신 스크롤이 끝에 가까워지면 다음 page를 붙인다(무한 스크롤)
+                        footer: MoviePageFooter(vm: viewModel, autoLoad: true),
                       ),
                     ),
                   };

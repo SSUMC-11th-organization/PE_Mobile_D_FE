@@ -6,6 +6,7 @@ import '../core/session/session_guard.dart';
 import '../data/models/tmdb_movie_dto.dart';
 import '../data/services/favorite_api_service.dart';
 import '../data/services/member_api_service.dart';
+import '../data/services/movie_record_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/sign_up_service.dart';
 import '../data/services/tmdb_movie_service.dart';
@@ -273,6 +274,7 @@ class AppRouter {
             initialMovie: extra is TmdbMovieDto && extra.id == id
                 ? extra
                 : null,
+            movieRecordService: context.read<MovieRecordApiService>(),
           )..load(),
           // 즐겨찾기 상태는 계정·세션마다 새로 만든다. 영화 정보 ViewModel은 그대로 둔다
           child: _FavoriteDetailScope(

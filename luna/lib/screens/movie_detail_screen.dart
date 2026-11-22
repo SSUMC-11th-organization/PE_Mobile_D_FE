@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -44,25 +46,49 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
   Future<void> _openRatingDialog() async {
     final viewModel = context.read<MovieDetailViewModel>();
+    final favorite = context.read<FavoriteDetailViewModel>();
+    // 서버에서 확인한 즐겨찾기 여부로 경로를 고른다.
+    // 아직 즐겨찾기하지 않은 영화만 체크박스를 보여주고 movie-records로 한 번에 저장한다
+    final alreadyFavorite = favorite.hasLoadedStatus && favorite.isFavorite;
+    final offerFavorite = favorite.hasLoadedStatus && !favorite.isFavorite;
+    String? closedMessage;
+
     final saved = await showDialog<bool>(
       context: context,
       barrierDismissible: false, // 저장 중 바깥 탭으로 닫히는 것도 막는다
       builder: (_) => RatingDialog(
-        onSubmit: (score, comment) async {
-          await viewModel.createRating(score: score, comment: comment);
-          if (viewModel.submitStatus != SubmitStatus.success) {
-            final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
-            // 만료(401)는 Router가 로그인 화면으로 보내므로 이 화면에 안내를 남기지 않는다.
-            // 403·409 등은 어떤 오류인지 Snackbar로 안내하고 로그인 상태를 유지한다
-            if (!viewModel.sessionExpired) _showSnackBar(message);
-            throw StateError(message); // Dialog를 유지해 입력을 보존한다
+        showAddToFavorite: offerFavorite,
+        onSubmit: (score, comment, addToFavorites) async {
+          await viewModel.saveRating(
+            score: score,
+            comment: comment,
+            addToFavorites: addToFavorites,
+            alreadyFavorite: alreadyFavorite,
+          );
+          if (viewModel.submitStatus == SubmitStatus.success) return;
+          final message = viewModel.submitMessage ?? '저장에 실패했습니다.';
+          // 이미 평점·이미 즐겨찾기·회원 없음은 다시 시도해도 같으므로 Dialog를 닫고 Snackbar로 안내
+          if (viewModel.closeDialogOnError) {
+            closedMessage = message;
+            throw const RatingDialogClose();
           }
+          // 입력값 오류(COMMON400)·네트워크 실패는 Dialog 안에 이유를 보여주고 입력을 유지한다.
+          // 만료(401)는 Router가 로그인 화면으로 보낸다
+          throw StateError(message);
         },
       ),
     );
-    if (!mounted || saved != true) return;
+    if (!mounted) return;
 
-    _showSnackBar('평점을 등록했습니다.');
+    if (saved == true) {
+      _showSnackBar('평점을 저장했습니다.');
+    } else if (closedMessage != null) {
+      _showSnackBar(closedMessage!);
+    } else {
+      return; // 취소
+    }
+    // 저장했거나 서버가 이미 즐겨찾기라고 알려 왔으면 북마크를 서버 값으로 다시 맞춘다
+    unawaited(favorite.load());
   }
 
   void _showSnackBar(String message) {

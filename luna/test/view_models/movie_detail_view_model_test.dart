@@ -14,6 +14,7 @@ import 'package:movielog/view_models/session_rating_store.dart';
 import 'package:movielog/view_models/submit_status.dart';
 
 import '../helpers/fake_auth.dart';
+import '../helpers/fake_favorites.dart';
 
 class _FakeTmdbMovieService extends TmdbMovieService {
   _FakeTmdbMovieService({this.error}) : super(Dio());
@@ -58,6 +59,7 @@ MovieDetailViewModel _viewModel(
   AuthViewModel? auth,
   SessionRatingStore? store,
   TmdbMovieDto? initialMovie,
+  FakeMovieRecordApiService? recordService,
 }) {
   final resolvedAuth = auth ?? signedInAuth();
   return MovieDetailViewModel(
@@ -67,6 +69,7 @@ MovieDetailViewModel _viewModel(
     store ?? SessionRatingStore(resolvedAuth),
     movieId: movieId,
     initialMovie: initialMovie,
+    movieRecordService: recordService,
   );
 }
 
@@ -278,5 +281,114 @@ void main() {
     await viewModel.createRating(score: 4);
 
     expect(viewModel.submitStatus, SubmitStatus.error);
+  });
+
+  group('평점·즐겨찾기 통합 저장(Challenge)', () {
+    test('즐겨찾기하지 않은 영화는 movie-records로 한 번에 저장하고 평점 카드를 갱신한다', () async {
+      final ratingService = _FakeRatingApiService();
+      final records = FakeMovieRecordApiService();
+      final viewModel = _viewModel(
+        _FakeTmdbMovieService(),
+        movieId: 550,
+        ratingService: ratingService,
+        recordService: records,
+      );
+
+      await viewModel.saveRating(
+        score: 3,
+        comment: '예시 후기',
+        addToFavorites: true,
+        alreadyFavorite: false,
+      );
+
+      expect(records.requests.single.toJson(), {
+        'movieId': 550,
+        'score': 3,
+        'comment': '예시 후기',
+        'addToFavorites': true,
+      });
+      expect(ratingService.calls, isEmpty);
+      expect(viewModel.submitStatus, SubmitStatus.success);
+      expect(viewModel.createdRating?.ratingId, 77);
+    });
+
+    test('이미 즐겨찾기한 영화는 기존 평점 등록 API로 평점만 저장한다', () async {
+      final ratingService = _FakeRatingApiService();
+      final records = FakeMovieRecordApiService();
+      final viewModel = _viewModel(
+        _FakeTmdbMovieService(),
+        movieId: 550,
+        ratingService: ratingService,
+        recordService: records,
+      );
+
+      await viewModel.saveRating(
+        score: 4,
+        addToFavorites: false,
+        alreadyFavorite: true,
+      );
+
+      expect(records.requests, isEmpty);
+      expect(ratingService.calls.single.score, 4);
+      expect(viewModel.submitStatus, SubmitStatus.success);
+    });
+
+    for (final (code, status) in [
+      ('RATING409_1', 409),
+      ('FAVORITE409_1', 409),
+      ('MEMBER404_1', 404),
+    ]) {
+      test('$code는 Dialog를 닫고 안내하도록 표시한다(로그인 유지)', () async {
+        final auth = signedInAuth();
+        final viewModel = _viewModel(
+          _FakeTmdbMovieService(),
+          movieId: 550,
+          auth: auth,
+          recordService: FakeMovieRecordApiService()
+            ..error = apiError(status, code, path: '/v8/movie-records'),
+        );
+
+        await viewModel.saveRating(
+          score: 3,
+          addToFavorites: true,
+          alreadyFavorite: false,
+        );
+
+        expect(viewModel.submitStatus, SubmitStatus.error);
+        expect(viewModel.closeDialogOnError, isTrue);
+        expect(viewModel.submitMessage, isNotEmpty);
+        expect(auth.status, AuthStatus.signedIn);
+      });
+    }
+
+    test('COMMON400·네트워크 실패는 Dialog를 유지하고 이유를 남긴다', () async {
+      final records = FakeMovieRecordApiService()
+        ..error = apiError(400, 'COMMON400', path: '/v8/movie-records');
+      final viewModel = _viewModel(
+        _FakeTmdbMovieService(),
+        movieId: 550,
+        recordService: records,
+      );
+
+      await viewModel.saveRating(
+        score: 3,
+        addToFavorites: true,
+        alreadyFavorite: false,
+      );
+      expect(viewModel.closeDialogOnError, isFalse);
+      expect(viewModel.submitMessage, 'COMMON400 메시지'); // 서버 message 그대로
+
+      records.error = DioException(
+        requestOptions: RequestOptions(path: '/v8/movie-records'),
+        type: DioExceptionType.connectionError,
+      );
+      await viewModel.saveRating(
+        score: 3,
+        addToFavorites: true,
+        alreadyFavorite: false,
+      );
+      expect(viewModel.closeDialogOnError, isFalse);
+      expect(viewModel.submitMessage, '네트워크 연결을 확인하고 다시 시도해 주세요.');
+    });
   });
 }

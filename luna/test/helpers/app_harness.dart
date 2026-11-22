@@ -9,6 +9,7 @@ import 'package:movielog/data/models/tmdb_movie_dto.dart';
 import 'package:movielog/data/models/tmdb_movie_page.dart';
 import 'package:movielog/data/services/favorite_api_service.dart';
 import 'package:movielog/data/services/member_api_service.dart';
+import 'package:movielog/data/services/movie_record_api_service.dart';
 import 'package:movielog/data/services/rating_api_service.dart';
 import 'package:movielog/data/services/tmdb_movie_service.dart';
 import 'package:movielog/models/movie_sort_order.dart';
@@ -103,13 +104,21 @@ TmdbMovieDto testMovie(int id, String title) => TmdbMovieDto(
 );
 
 class TestApp {
-  TestApp(this.router, this.auth, this.favorites, this.memberApi, this.tmdb);
+  TestApp(
+    this.router,
+    this.auth,
+    this.favorites,
+    this.memberApi,
+    this.tmdb,
+    this.records,
+  );
 
   final GoRouter router;
   final AuthViewModel auth;
   final FakeFavoriteApiService favorites;
   final FakeMemberApiService memberApi;
   final FakeAppTmdbService tmdb;
+  final FakeMovieRecordApiService records;
 }
 
 /// 로그인된 세션으로 앱 Router와 9주차 Provider(세션 가드·즐겨찾기)를 띄운다.
@@ -126,6 +135,8 @@ Future<TestApp> pumpRouterApp(
   final memberApi = FakeMemberApiService();
   final auth = signedInAuth(memberApi: memberApi);
   final favoriteApi = FakeFavoriteApiService(favorites: favorites);
+  // 통합 저장이 성공하면 같은 즐겨찾기 상태에 반영되도록 묶는다
+  final records = FakeMovieRecordApiService(favorites: favoriteApi);
   final tmdb = FakeAppTmdbService();
   final router = AppRouter.createRouter(auth);
   addTearDown(router.dispose);
@@ -145,6 +156,7 @@ Future<TestApp> pumpRouterApp(
           value: ratingApi ?? RatingApiService(Dio(), Dio()),
         ),
         Provider<FavoriteApiService>.value(value: favoriteApi),
+        Provider<MovieRecordApiService>.value(value: records),
         Provider<AuthSessionBridge>(
           lazy: false,
           create: (_) => AuthSessionBridge(
@@ -163,5 +175,5 @@ Future<TestApp> pumpRouterApp(
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
     ),
   );
-  return TestApp(router, auth, favoriteApi, memberApi, tmdb);
+  return TestApp(router, auth, favoriteApi, memberApi, tmdb, records);
 }

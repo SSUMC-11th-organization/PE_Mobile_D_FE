@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -13,6 +15,7 @@ import '../widgets/movie_list/movie_page_footer.dart';
 /// 영화 검색(/movies/search). 영화 목록과 별도의 PagedMoviesViewModel을 쓴다.
 /// root Navigator 위라 하단 NavigationBar가 없다.
 /// 처음 진입(idle)과 결과 없음(empty)을 구분하고, 빈 검색어는 서버에 보내지 않는다.
+/// 제출 외에도 입력이 500ms 멈추면 마지막 검색어로 한 번만 검색한다(debounce).
 class MovieSearchScreen extends StatefulWidget {
   const MovieSearchScreen({super.key, required this.onOpenMovie});
 
@@ -23,18 +26,41 @@ class MovieSearchScreen extends StatefulWidget {
 }
 
 class _MovieSearchScreenState extends State<MovieSearchScreen> {
+  static const debounceDuration = Duration(milliseconds: 500);
+
   final _text = TextEditingController();
+  Timer? _debounce;
 
   String _submittedQuery = '';
   String? _inputError;
 
-  /// 제출할 때만 요청한다. 새 검색은 page 1부터 시작하고 이전 결과를 비운다
+  /// 입력할 때마다 이전 타이머를 취소하고 새로 시작한다.
+  /// "어"→"어벤"→"어벤져스"처럼 빠르게 입력하면 마지막 검색어로 한 번만 요청한다.
+  /// 그래도 늦게 도착한 이전 응답은 PagedMoviesViewModel의 generation이 무시한다
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    if (_inputError != null) setState(() => _inputError = null);
+    _debounce = Timer(debounceDuration, () {
+      if (!mounted) return;
+      final query = value.trim();
+      // 빈 검색어는 서버에 보내지 않고, 이미 보낸 검색어는 다시 보내지 않는다
+      if (query.isEmpty || query == _submittedQuery) return;
+      _search(query);
+    });
+  }
+
+  /// 키보드의 검색·검색 버튼으로 제출. 새 검색은 page 1부터 시작하고 이전 결과를 비운다
   void _submitSearch(String value) {
+    _debounce?.cancel(); // 제출했으면 대기 중인 자동 검색은 보내지 않는다
     final query = value.trim();
     if (query.isEmpty) {
       setState(() => _inputError = '검색어를 입력해 주세요.');
       return;
     }
+    _search(query);
+  }
+
+  void _search(String query) {
     setState(() {
       _inputError = null;
       _submittedQuery = query;
@@ -44,6 +70,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel(); // 화면이 사라진 뒤 타이머가 요청을 보내지 않게 한다
     _text.dispose();
     super.dispose();
   }
@@ -65,6 +92,7 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
               child: TextField(
                 controller: _text,
                 textInputAction: TextInputAction.search,
+                onChanged: _onChanged,
                 onSubmitted: _submitSearch,
                 decoration: InputDecoration(
                   hintText: '영화 제목을 입력해 주세요',
