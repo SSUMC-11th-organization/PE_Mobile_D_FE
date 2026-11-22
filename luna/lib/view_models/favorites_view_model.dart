@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/network/api_error.dart';
 import '../core/session/session_guard.dart';
 import '../core/utils/map_bounded.dart';
 import '../core/utils/safe_notify.dart';
@@ -18,6 +20,7 @@ class FavoritesViewModel extends ChangeNotifier with SafeNotify {
     required this.tmdbApi,
     required this.sessionGuard,
     required this.accountId,
+    this.onSessionExpired,
     this.enrichmentConcurrency = 5,
   });
 
@@ -25,6 +28,9 @@ class FavoritesViewModel extends ChangeNotifier with SafeNotify {
   final TmdbMovieService tmdbApi;
   final SessionGuard sessionGuard;
   final String accountId;
+
+  /// 토큰 없음·무효·만료(AUTH401_2/3/4)일 때 현재 세션을 한 번 정리한다(8주차 expireSession)
+  final Future<void> Function()? onSessionExpired;
 
   /// TMDB 보충 요청을 한 번에 몇 개까지 보낼지. 즐겨찾기가 100개여도 5개씩만 요청한다
   final int enrichmentConcurrency;
@@ -82,11 +88,20 @@ class FavoritesViewModel extends ChangeNotifier with SafeNotify {
       items = enriched;
       phase = items.isEmpty ? LoadPhase.empty : LoadPhase.ready;
     } catch (error) {
+      // 이전 계정·이전 세션의 늦은 401은 여기서 걸러져 현재 계정을 로그아웃시키지 않는다
       if (_isStale(sessionGeneration, refreshGeneration)) return;
+      if (error is DioException && isSessionExpiredError(error)) {
+        await onSessionExpired?.call(); // Router가 /login으로 보낸다
+        return;
+      }
       debugPrint('내 즐겨찾기 조회 실패: ${error.runtimeType}');
-      // 이미 보이던 목록은 지우지 않는다. 처음 조회가 실패했을 때만 오류 화면
+      // 이미 보이던 목록은 지우지 않는다. 처음 조회가 실패했을 때만 오류 화면.
+      // 네트워크 실패·403은 로그아웃하지 않는다
       if (!hasList) phase = LoadPhase.error;
-      errorMessage = '즐겨찾기를 불러오지 못했습니다.';
+      errorMessage =
+          error is DioException && apiErrorCode(error) == 'MEMBER404_1'
+          ? '회원 정보를 찾을 수 없어요. 다시 로그인해 주세요.'
+          : '즐겨찾기를 불러오지 못했습니다.';
     } finally {
       if (!_isStale(sessionGeneration, refreshGeneration)) {
         isRefreshing = false;

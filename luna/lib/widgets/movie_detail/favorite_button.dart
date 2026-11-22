@@ -18,7 +18,14 @@ class FavoriteButton extends StatelessWidget {
   Future<void> _toggle(BuildContext context, FavoriteDetailViewModel vm) async {
     final requested = await vm.toggle();
     // 세션이 바뀌어 결과를 버린 경우(isSaving이 남음)에는 안내하지 않는다
-    if (!context.mounted || !requested || vm.isDisposed || vm.isSaving) return;
+    // 세션 만료는 Router가 로그인 화면으로 보내므로 안내하지 않는다
+    if (!context.mounted ||
+        !requested ||
+        vm.isDisposed ||
+        vm.isSaving ||
+        vm.sessionExpired) {
+      return;
+    }
     onResult(
       vm.errorMessage ?? (vm.isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.'),
     );

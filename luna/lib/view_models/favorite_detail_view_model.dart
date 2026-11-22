@@ -15,6 +15,7 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
     required this.favoriteApi,
     required this.sessionGuard,
     required this.accountId,
+    this.onSessionExpired,
   });
 
   /// 상세 화면의 TMDB 영화 ID. 즐겨찾기 경로에는 favoriteId가 아니라 이 값을 쓴다
@@ -24,6 +25,13 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
 
   /// 현재 세션의 계정(GET me의 email). 내 정보를 아직 받지 못했으면 null → 요청하지 않고 기다린다
   final String? accountId;
+
+  /// 토큰 없음·무효·만료(AUTH401_2/3/4)일 때 현재 세션을 정리한다(8주차 expireSession).
+  /// 이 ViewModel을 만든 세션 번호로 묶여 있어, 다른 세션은 로그아웃시키지 않는다
+  final Future<void> Function()? onSessionExpired;
+
+  /// 세션 만료로 정리를 요청했는지. 화면은 안내 없이 Router의 로그인 이동에 맡긴다
+  bool sessionExpired = false;
 
   bool isFavorite = false;
   bool hasLoadedStatus = false; // 첫 여부 조회가 성공했는지. 실패하면 토글을 막는다
@@ -69,8 +77,11 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
       hasLoadedStatus = true;
     } catch (error) {
       if (_isStale(snap.generation)) return;
+      if (await _expireIfNeeded(error)) return;
       debugPrint('즐겨찾기 여부 조회 실패: ${error.runtimeType}');
-      errorMessage = '즐겨찾기 여부를 확인하지 못했습니다.';
+      errorMessage = error is DioException && _isMemberMissing(error)
+          ? _memberMissingMessage
+          : '즐겨찾기 여부를 확인하지 못했습니다.';
     } finally {
       if (!_isStale(snap.generation)) {
         isLoading = false;
@@ -100,13 +111,18 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
       isFavorite = !before;
     } on DioException catch (error) {
       if (_isStale(snap.generation)) return true;
+      if (await _expireIfNeeded(error)) return true;
       final code = apiErrorCode(error);
       // 이미 등록(409)·이미 해제(404)면 POST/DELETE를 반복하지 않고 서버의 현재 여부로 맞춘다
       if (code == 'FAVORITE409_1' || code == 'FAVORITE404_1') {
         await _syncAfterConflict(snap.generation, before);
       } else {
+        // 회원 없음(MEMBER404_1)은 즐겨찾기 없음(FAVORITE404_1)과 구분해 안내한다.
+        // 403·네트워크 실패는 로그아웃하지 않고 이전 상태를 유지한다
         isFavorite = before;
-        errorMessage = _failureMessage(before);
+        errorMessage = _isMemberMissing(error)
+            ? _memberMissingMessage
+            : _failureMessage(before);
       }
     } catch (error) {
       if (_isStale(snap.generation)) return true;
@@ -134,6 +150,20 @@ class FavoriteDetailViewModel extends ChangeNotifier with SafeNotify {
       errorMessage = '서버 상태를 다시 확인하지 못했습니다.';
     }
   }
+
+  // AUTH401_2/3/4만 세션 만료다. 로그인 오류(AUTH401_1)·403·네트워크 실패는 로그아웃하지 않는다.
+  // 이미 현재 세션이 아니면(_isStale) 호출 전에 걸러지므로 이전 계정의 늦은 401은 무시된다
+  Future<bool> _expireIfNeeded(Object error) async {
+    if (error is! DioException || !isSessionExpiredError(error)) return false;
+    sessionExpired = true;
+    await onSessionExpired?.call();
+    return true;
+  }
+
+  static bool _isMemberMissing(DioException error) =>
+      apiErrorCode(error) == 'MEMBER404_1';
+
+  static const _memberMissingMessage = '회원 정보를 찾을 수 없어요. 다시 로그인해 주세요.';
 
   static String _failureMessage(bool wasFavorite) =>
       wasFavorite ? '즐겨찾기 해제에 실패했습니다.' : '즐겨찾기 등록에 실패했습니다.';

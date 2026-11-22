@@ -6,6 +6,7 @@ import 'package:movielog/core/session/session_guard.dart';
 import 'package:movielog/view_models/favorites_view_model.dart';
 import 'package:movielog/view_models/load_phase.dart';
 
+import '../helpers/fake_auth.dart';
 import '../helpers/fake_favorites.dart';
 
 void main() {
@@ -126,5 +127,78 @@ void main() {
     api.calls.clear();
     await vm.refresh();
     expect(api.calls, isEmpty);
+  });
+
+  group('세션 만료', () {
+    test('AUTH401_2/3/4면 현재 세션 정리를 한 번 요청한다', () async {
+      for (final code in ['AUTH401_2', 'AUTH401_3', 'AUTH401_4']) {
+        var expired = 0;
+        api.listError = apiError(401, code, path: '/v8/favorites');
+        final vm = FavoritesViewModel(
+          favoriteApi: api,
+          tmdbApi: tmdb,
+          sessionGuard: guard,
+          accountId: account,
+          onSessionExpired: () async => expired++,
+        );
+
+        await vm.refresh();
+
+        expect(expired, 1, reason: code);
+      }
+    });
+
+    test('네트워크 실패·403은 로그아웃하지 않고 오류 화면만 보여준다', () async {
+      var expired = 0;
+      final vm = FavoritesViewModel(
+        favoriteApi: api,
+        tmdbApi: tmdb,
+        sessionGuard: guard,
+        accountId: account,
+        onSessionExpired: () async => expired++,
+      );
+
+      api.listError = apiError(403, 'COMMON403', path: '/v8/favorites');
+      await vm.refresh();
+      api.listError = DioException(
+        requestOptions: RequestOptions(path: '/v8/favorites'),
+        type: DioExceptionType.connectionError,
+      );
+      await vm.refresh();
+
+      expect(expired, 0);
+      expect(vm.phase, LoadPhase.error);
+    });
+
+    test('이전 계정에서 늦게 도착한 401은 현재 계정을 로그아웃시키지 않는다', () async {
+      var expired = 0;
+      api
+        ..listGate = Completer<void>()
+        ..listError = apiError(401, 'AUTH401_3', path: '/v8/favorites');
+      final vm = FavoritesViewModel(
+        favoriteApi: api,
+        tmdbApi: tmdb,
+        sessionGuard: guard,
+        accountId: account,
+        onSessionExpired: () async => expired++,
+      );
+
+      final pending = vm.refresh();
+      guard.invalidate();
+      guard.startSession('other@example.com'); // 다른 계정으로 로그인
+      api.listGate!.complete();
+      await pending;
+
+      expect(expired, 0);
+    });
+
+    test('회원 없음(MEMBER404_1)은 즐겨찾기 없음과 다른 안내를 보여준다', () async {
+      api.listError = apiError(404, 'MEMBER404_1', path: '/v8/favorites');
+      final vm = create();
+
+      await vm.refresh();
+
+      expect(vm.errorMessage, contains('회원 정보를 찾을 수 없어요'));
+    });
   });
 }

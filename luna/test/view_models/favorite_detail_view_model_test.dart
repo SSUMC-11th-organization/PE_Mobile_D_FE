@@ -147,4 +147,47 @@ void main() {
 
     expect(vm.isDisposed, isTrue);
   });
+
+  test('토큰 만료(AUTH401_3)면 세션 정리를 요청하고 실패 안내를 남기지 않는다', () async {
+    var expired = 0;
+    final vm = FavoriteDetailViewModel(
+      movieId: 550,
+      favoriteApi: api,
+      sessionGuard: guard,
+      accountId: account,
+      onSessionExpired: () async => expired++,
+    );
+    await vm.load();
+    api.addError = apiError(401, 'AUTH401_3', path: '/v8/favorites');
+
+    await vm.toggle();
+
+    expect(expired, 1);
+    expect(vm.sessionExpired, isTrue);
+    expect(vm.errorMessage, isNull);
+    expect(vm.isFavorite, isFalse);
+  });
+
+  test('403·회원 없음은 로그아웃하지 않고 이전 상태를 유지한다', () async {
+    var expired = 0;
+    final vm = FavoriteDetailViewModel(
+      movieId: 550,
+      favoriteApi: api,
+      sessionGuard: guard,
+      accountId: account,
+      onSessionExpired: () async => expired++,
+    );
+    await vm.load();
+
+    api.addError = apiError(403, 'COMMON403', path: '/v8/favorites');
+    await vm.toggle();
+    expect(vm.errorMessage, '즐겨찾기 등록에 실패했습니다.');
+
+    api.addError = apiError(404, 'MEMBER404_1', path: '/v8/favorites');
+    await vm.toggle();
+    expect(vm.errorMessage, contains('회원 정보를 찾을 수 없어요'));
+
+    expect(expired, 0);
+    expect(vm.isFavorite, isFalse);
+  });
 }

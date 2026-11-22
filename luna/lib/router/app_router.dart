@@ -16,10 +16,12 @@ import '../screens/login_screen.dart';
 import '../screens/main_screen.dart';
 import '../screens/movie_detail_screen.dart';
 import '../screens/movie_list_screen.dart';
+import '../screens/movie_search_screen.dart';
 import '../screens/my_ratings_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/sign_up_screen.dart';
 import '../screens/splash_screen.dart';
+import '../services/movie_list_preference.dart';
 import '../view_models/auth_view_model.dart';
 import '../view_models/edit_profile_view_model.dart';
 import '../view_models/favorite_detail_view_model.dart';
@@ -28,6 +30,7 @@ import '../view_models/movie_detail_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
 import '../view_models/my_ratings_view_model.dart';
+import '../view_models/paged_movies_view_model.dart';
 import '../view_models/session_rating_store.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/common/movie_log_app_bar.dart';
@@ -123,16 +126,45 @@ class AppRouter {
               routes: [
                 GoRoute(
                   path: '/movies',
-                  // 영화 목록 ViewModel도 Route에서 만들고, 생성 직후 장르·영화 목록을 한 번 불러온다
+                  // 영화 목록 ViewModel도 Route에서 만들고, 생성 직후 장르·첫 page를 한 번 불러온다
                   builder: (context, state) =>
                       ChangeNotifierProvider<MovieListViewModel>(
-                        create: (context) =>
-                            MovieListViewModel(context.read<TmdbMovieService>())
-                              ..loadInitial(),
+                        create: (context) => MovieListViewModel(
+                          context.read<TmdbMovieService>(),
+                          preference: context.read<MovieListPreference>(),
+                        )..initialize(),
                         child: const MovieListScreen(),
                       ),
-                  // 영화 탭에서 연 상세는 영화 탭 안에 쌓임: /movies/:movieId
-                  routes: [_movieDetailRoute(':movieId')],
+                  routes: [
+                    // 정적인 search를 동적인 :movieId보다 먼저 등록한다.
+                    // 순서가 바뀌면 'search'가 영화 ID로 해석된다
+                    GoRoute(
+                      path: 'search', // 최종 경로: /movies/search
+                      parentNavigatorKey: rootNavigatorKey,
+                      // 영화 목록과 별도의 PagedMoviesViewModel 인스턴스를 쓴다
+                      builder: (context, state) =>
+                          ChangeNotifierProvider<PagedMoviesViewModel>(
+                            create: (context) => PagedMoviesViewModel(
+                              tmdbApi: context.read<TmdbMovieService>(),
+                            ),
+                            child: MovieSearchScreen(
+                              onOpenMovie: (movie) => context.push(
+                                '/movies/search/${movie.id}',
+                                extra: movie,
+                              ),
+                            ),
+                          ),
+                      // 검색 결과에서 연 상세: /movies/search/:movieId
+                      routes: [
+                        _movieDetailRoute(
+                          ':movieId',
+                          parentNavigatorKey: rootNavigatorKey,
+                        ),
+                      ],
+                    ),
+                    // 영화 탭에서 연 상세는 영화 탭 안에 쌓임: /movies/:movieId
+                    _movieDetailRoute(':movieId'),
+                  ],
                 ),
               ],
             ),
@@ -264,7 +296,8 @@ class _FavoriteDetailScope extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final member = context.watch<AuthViewModel>().member;
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
     final guard = context.read<SessionGuard>();
     // 내 정보가 준비되고 현재 세션과 일치할 때만 계정을 넘긴다.
     // 그전에는 영화 정보는 보여주고 북마크 자리만 로딩으로 둔다
@@ -276,12 +309,18 @@ class _FavoriteDetailScope extends StatelessWidget {
       key: ValueKey(
         accountId == null ? 'pending' : '$accountId:${guard.generation}',
       ),
-      create: (context) => FavoriteDetailViewModel(
-        movieId: movieId,
-        favoriteApi: context.read<FavoriteApiService>(),
-        sessionGuard: guard,
-        accountId: accountId,
-      ),
+      create: (context) {
+        // 이 ViewModel이 속한 세션 번호. 다른 세션이면 expireSession이 무시한다
+        final sessionVersion = auth.sessionVersion;
+        return FavoriteDetailViewModel(
+          movieId: movieId,
+          favoriteApi: context.read<FavoriteApiService>(),
+          sessionGuard: guard,
+          accountId: accountId,
+          onSessionExpired: () =>
+              auth.expireSession(requestVersion: sessionVersion),
+        );
+      },
       child: child,
     );
   }
@@ -323,12 +362,17 @@ class _FavoritesRoute extends StatelessWidget {
     return ChangeNotifierProvider<FavoritesViewModel>(
       // 계정이나 세션이 바뀌면 이전 사용자의 목록을 버리고 새 ViewModel을 만든다
       key: ValueKey('${member.email}:${guard.generation}'),
-      create: (context) => FavoritesViewModel(
-        favoriteApi: context.read<FavoriteApiService>(),
-        tmdbApi: context.read<TmdbMovieService>(),
-        sessionGuard: guard,
-        accountId: member.email,
-      ),
+      create: (context) {
+        final sessionVersion = auth.sessionVersion;
+        return FavoritesViewModel(
+          favoriteApi: context.read<FavoriteApiService>(),
+          tmdbApi: context.read<TmdbMovieService>(),
+          sessionGuard: guard,
+          accountId: member.email,
+          onSessionExpired: () =>
+              auth.expireSession(requestVersion: sessionVersion),
+        );
+      },
       child: FavoritesScreen(
         onOpenMovie: (movieId) => context.push('/my/favorites/$movieId'),
       ),

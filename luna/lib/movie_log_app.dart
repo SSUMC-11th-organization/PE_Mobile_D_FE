@@ -15,6 +15,7 @@ import 'data/services/rating_api_service.dart';
 import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
+import 'services/movie_list_preference.dart';
 import 'services/saved_email_preference.dart';
 import 'theme/app_theme.dart';
 import 'view_models/auth_view_model.dart';
@@ -38,6 +39,8 @@ class MovieLogApp extends StatelessWidget {
         Provider<TokenStorage>.value(value: tokenStorage),
         // 로그인 화면의 '이메일 저장'(이메일만, 평문 저장소)
         Provider<SavedEmailPreference>(create: (_) => SavedEmailPreference()),
+        // 영화 목록의 장르·정렬 선택 저장(5주차 Challenge)
+        Provider<MovieListPreference>(create: (_) => MovieListPreference()),
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
         ),
