@@ -4,10 +4,12 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../../data/models/tmdb_movie_detail_dto.dart';
 
 /// 상세 화면의 제목, 연도·상영시간, TMDB 평균 평점, 장르 Chip.
+/// trailing을 주면 제목·정보 텍스트 오른쪽에 둔다(즐겨찾기 버튼).
 class MovieInfoSection extends StatelessWidget {
-  const MovieInfoSection({super.key, required this.movie});
+  const MovieInfoSection({super.key, required this.movie, this.trailing});
 
   final TmdbMovieDetailDto movie;
+  final Widget? trailing;
 
   // 1245 → "1,245"
   static String _withComma(int value) => value.toString().replaceAllMapped(
@@ -27,7 +29,7 @@ class MovieInfoSection extends StatelessWidget {
       if (runtime != null && runtime > 0) '$runtime분',
     ].join(' • ');
 
-    return Column(
+    final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(movie.title, style: textTheme.headlineLarge),
@@ -40,6 +42,23 @@ class MovieInfoSection extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (trailing == null)
+          titleBlock
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: titleBlock),
+              const SizedBox(width: 16),
+              trailing!,
+            ],
+          ),
         const SizedBox(height: 12),
         Row(
           children: [

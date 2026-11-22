@@ -184,7 +184,7 @@ void main() {
   testWidgets('네트워크 실패는 로그아웃하지 않고 Snackbar로 재시도를 안내한다', (tester) async {
     final app = await _pumpApp(tester);
     app.memberApi.updateError = DioException.connectionError(
-      requestOptions: RequestOptions(path: '/v7/members/me'),
+      requestOptions: RequestOptions(path: '/v8/members/me'),
       reason: 'offline',
     );
     app.router.go('/my/profile/edit');
@@ -287,7 +287,7 @@ void main() {
 
       // 로딩 실패 → 재시도 버튼
       app.memberApi.error = DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v7/members/me'),
+        requestOptions: RequestOptions(path: '/v8/members/me'),
         reason: 'offline',
       );
       app.auth.memberStatus = MemberLoadStatus.idle;

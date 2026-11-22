@@ -17,7 +17,7 @@ import 'package:provider/provider.dart';
 
 import '../helpers/fake_auth.dart';
 
-/// v7 PATCH/DELETE만 흉내 낸다. 목록은 SessionRatingStore가 들고 있다.
+/// v8 PATCH/DELETE만 흉내 낸다. 목록은 SessionRatingStore가 들고 있다.
 class _FakeRatingApiService extends RatingApiService {
   _FakeRatingApiService() : super(Dio(), Dio());
 
@@ -51,7 +51,7 @@ class _FakeRatingApiService extends RatingApiService {
     await deleteGate?.future;
     if (failingDeleteIds.contains(ratingId)) {
       throw DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v7/ratings/$ratingId'),
+        requestOptions: RequestOptions(path: '/v8/ratings/$ratingId'),
         reason: 'offline',
       );
     }

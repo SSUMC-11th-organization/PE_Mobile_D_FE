@@ -3,11 +3,14 @@ import 'package:provider/provider.dart';
 
 import '../data/models/rating_dto.dart';
 import '../data/models/tmdb_movie_detail_dto.dart';
+import '../theme/app_colors.dart';
+import '../view_models/favorite_detail_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/submit_status.dart';
 import '../widgets/common/app_svg_icon.dart';
 import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/tmdb_poster_image.dart';
+import '../widgets/movie_detail/favorite_button.dart';
 import '../widgets/movie_detail/movie_detail_actions.dart';
 import '../widgets/movie_detail/movie_info_section.dart';
 import '../widgets/movie_detail/movie_synopsis.dart';
@@ -15,7 +18,8 @@ import '../widgets/movie_detail/my_rating_card.dart';
 import '../widgets/movie_detail/rating_dialog.dart';
 import '../widgets/movie_list/movie_list_error.dart';
 
-/// 영화 상세. 영화 정보는 MovieDetailViewModel이 TMDB 영화 ID로 조회한다.
+/// 영화 상세. 영화 정보는 MovieDetailViewModel이 TMDB 영화 ID로 조회하고,
+/// 즐겨찾기 여부·등록·해제는 FavoriteDetailViewModel이 MovieLog 서버 값으로 관리한다.
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key});
 
@@ -24,16 +28,18 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  // 즐겨찾기는 API 없이 이 화면 안에서만 유지되는 Mock 상태
-  bool _isFavorite = false;
-
   // 상세 화면이 탭(MainScreen) Scaffold 안에 있으므로, Snackbar가 NavigationBar 위
   // 하단 버튼을 가리지 않도록 이 화면 전용 ScaffoldMessenger를 둠
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
-  void _toggleFavorite() {
-    setState(() => _isFavorite = !_isFavorite);
-    _showSnackBar(_isFavorite ? '즐겨찾기에 추가했어요.' : '즐겨찾기에서 삭제했어요.');
+  @override
+  void initState() {
+    super.initState();
+    // 화면이 처음 만들어질 때 서버의 즐겨찾기 여부를 한 번 조회한다 (build에서는 조회하지 않음).
+    // 계정·세션이 바뀌면 Route의 ValueKey로 화면째 새로 만들어지므로 다시 조회된다
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<FavoriteDetailViewModel>().load();
+    });
   }
 
   Future<void> _openRatingDialog() async {
@@ -108,12 +114,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         },
         bottomNavigationBar: isLoaded
             ? MovieDetailActions(
-                isFavorite: _isFavorite,
                 canRate: viewModel.canRate,
                 rateLabel: viewModel.createdRating == null
                     ? '평점 남기기'
                     : '평점 등록 완료',
-                onFavoritePressed: _toggleFavorite,
                 onRatePressed: _openRatingDialog,
               )
             : null,
@@ -136,8 +140,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            child: MovieInfoSection(movie: movie),
+            // 제목·정보 텍스트 오른쪽에 북마크를 둔다
+            child: MovieInfoSection(
+              movie: movie,
+              trailing: FavoriteButton(onResult: _showSnackBar),
+            ),
           ),
+          const _FavoriteErrorBanner(),
           // 등록 응답의 Rating 객체로 그리는 현재 세션의 내 평점 카드
           if (createdRating != null)
             Padding(
@@ -150,6 +159,35 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             child: MovieSynopsis(synopsis: movie.overview),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 즐겨찾기 요청이 실패했을 때 이전 북마크 상태를 유지한 채 보여주는 안내.
+class _FavoriteErrorBanner extends StatelessWidget {
+  const _FavoriteErrorBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final message = context.select<FavoriteDetailViewModel, String?>(
+      (vm) => vm.errorMessage,
+    );
+    if (message == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.error100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          message,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: AppColors.error500),
+        ),
       ),
     );
   }

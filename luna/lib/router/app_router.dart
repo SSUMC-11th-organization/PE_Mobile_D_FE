@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../core/session/session_guard.dart';
 import '../data/models/tmdb_movie_dto.dart';
+import '../data/services/favorite_api_service.dart';
 import '../data/services/member_api_service.dart';
 import '../data/services/rating_api_service.dart';
 import '../data/services/sign_up_service.dart';
 import '../data/services/tmdb_movie_service.dart';
 import '../screens/edit_profile_screen.dart';
+import '../screens/favorites_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/main_screen.dart';
@@ -19,6 +22,8 @@ import '../screens/sign_up_screen.dart';
 import '../screens/splash_screen.dart';
 import '../view_models/auth_view_model.dart';
 import '../view_models/edit_profile_view_model.dart';
+import '../view_models/favorite_detail_view_model.dart';
+import '../view_models/favorites_view_model.dart';
 import '../view_models/movie_detail_view_model.dart';
 import '../view_models/movie_home_view_model.dart';
 import '../view_models/movie_list_view_model.dart';
@@ -154,6 +159,18 @@ class AppRouter {
                           ),
                     ),
                     GoRoute(
+                      path: 'favorites', // 최종 경로: /my/favorites
+                      parentNavigatorKey: rootNavigatorKey,
+                      builder: (context, state) => const _FavoritesRoute(),
+                      // 즐겨찾기에서 연 상세도 root Navigator 위에 쌓는다: /my/favorites/:movieId
+                      routes: [
+                        _movieDetailRoute(
+                          ':movieId',
+                          parentNavigatorKey: rootNavigatorKey,
+                        ),
+                      ],
+                    ),
+                    GoRoute(
                       path: 'profile/edit', // 최종 경로: /my/profile/edit
                       parentNavigatorKey: rootNavigatorKey,
                       builder: (context, state) {
@@ -199,11 +216,16 @@ class AppRouter {
     );
   }
 
-  // 같은 상세 화면을 홈·영화 탭에서 각각 사용하기 위한 Route 생성 함수.
+  // 같은 상세 화면을 홈·영화 탭·내 즐겨찾기에서 각각 사용하기 위한 Route 생성 함수.
   // Path Parameter의 TMDB 영화 ID로 상세 ViewModel을 만들고 바로 조회한다.
-  static GoRoute _movieDetailRoute(String path) {
+  // parentNavigatorKey를 주면 하단 NavigationBar 바깥(root)에 표시한다.
+  static GoRoute _movieDetailRoute(
+    String path, {
+    GlobalKey<NavigatorState>? parentNavigatorKey,
+  }) {
     return GoRoute(
       path: path,
+      parentNavigatorKey: parentNavigatorKey,
       builder: (context, state) {
         // Path Parameter는 문자열이므로 숫자로 변환. 숫자가 아니면 null
         final id = int.tryParse(state.pathParameters['movieId']!);
@@ -220,9 +242,96 @@ class AppRouter {
                 ? extra
                 : null,
           )..load(),
-          child: const MovieDetailScreen(),
+          // 즐겨찾기 상태는 계정·세션마다 새로 만든다. 영화 정보 ViewModel은 그대로 둔다
+          child: _FavoriteDetailScope(
+            movieId: id ?? 0,
+            child: const MovieDetailScreen(),
+          ),
         );
       },
+    );
+  }
+}
+
+/// 상세 화면에 현재 세션의 FavoriteDetailViewModel을 제공한다.
+/// ValueKey(email:generation)가 바뀌면(로그아웃·계정 전환·재로그인) 이전 계정의 ViewModel을
+/// 버리고 새로 만든다. 닉네임 수정이나 build 재실행으로는 key가 바뀌지 않는다.
+class _FavoriteDetailScope extends StatelessWidget {
+  const _FavoriteDetailScope({required this.movieId, required this.child});
+
+  final int movieId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final member = context.watch<AuthViewModel>().member;
+    final guard = context.read<SessionGuard>();
+    // 내 정보가 준비되고 현재 세션과 일치할 때만 계정을 넘긴다.
+    // 그전에는 영화 정보는 보여주고 북마크 자리만 로딩으로 둔다
+    final accountId = member != null && guard.accountId == member.email
+        ? member.email
+        : null;
+
+    return ChangeNotifierProvider<FavoriteDetailViewModel>(
+      key: ValueKey(
+        accountId == null ? 'pending' : '$accountId:${guard.generation}',
+      ),
+      create: (context) => FavoriteDetailViewModel(
+        movieId: movieId,
+        favoriteApi: context.read<FavoriteApiService>(),
+        sessionGuard: guard,
+        accountId: accountId,
+      ),
+      child: child,
+    );
+  }
+}
+
+/// /my/favorites. 내 정보(member)가 준비되면 현재 세션의 FavoritesViewModel을 만든다.
+/// 즐겨찾기 API에는 memberId를 보내지 않고 JWT로 사용자를 구분하며,
+/// email은 화면 쪽 세션 구분(ValueKey·SessionGuard)에만 쓴다.
+class _FavoritesRoute extends StatelessWidget {
+  const _FavoritesRoute();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthViewModel>();
+    final member = auth.member;
+    final guard = context.read<SessionGuard>();
+
+    if (member == null || guard.accountId != member.email) {
+      return Scaffold(
+        appBar: const MovieLogAppBar(
+          title: '내 즐겨찾기',
+          showBackButton: true,
+          centerTitle: true,
+          fallbackLocation: '/my',
+        ),
+        body: Center(
+          // 내 정보 로딩이 실패했으면 인디케이터만 계속 보여주지 않고 재시도를 연다
+          child: auth.memberStatus == MemberLoadStatus.error
+              ? MovieLogButton(
+                  label: '내 정보 다시 조회',
+                  width: 180,
+                  onPressed: () => auth.loadMember(force: true),
+                )
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return ChangeNotifierProvider<FavoritesViewModel>(
+      // 계정이나 세션이 바뀌면 이전 사용자의 목록을 버리고 새 ViewModel을 만든다
+      key: ValueKey('${member.email}:${guard.generation}'),
+      create: (context) => FavoritesViewModel(
+        favoriteApi: context.read<FavoriteApiService>(),
+        tmdbApi: context.read<TmdbMovieService>(),
+        sessionGuard: guard,
+        accountId: member.email,
+      ),
+      child: FavoritesScreen(
+        onOpenMovie: (movieId) => context.push('/my/favorites/$movieId'),
+      ),
     );
   }
 }
