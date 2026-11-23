@@ -8,12 +8,25 @@ class AuthInterceptor extends Interceptor {
   final TokenStorage _storage;
 
   bool _isProtected(RequestOptions options) {
-    final path = options.uri.path;
+    // TMDB 등 다른 서버에는 MovieLog JWT를 절대 붙이지 않습니다.
+    if (options.uri.host != 'workbook.devnoco.com') return false;
 
-    return options.uri.host == 'workbook.devnoco.com' &&
-        (path == '/v7/members/me' ||
-            path == '/v7/ratings' ||
-            path.startsWith('/v7/ratings/'));
+    final path = options.uri.path;
+    final method = options.method.toUpperCase();
+
+    // 기존 8주차 보호 API를 v8로 변경
+    final w8Protected =
+        path == '/v8/members/me' ||
+        path == '/v8/ratings' ||
+        path.startsWith('/v8/ratings/');
+
+    // 9주차 즐겨찾기 API
+    final favorites =
+        (path == '/v8/favorites' && (method == 'GET' || method == 'POST')) ||
+        (RegExp(r'^/v8/favorites/[1-9]\d*$').hasMatch(path) &&
+            (method == 'GET' || method == 'DELETE'));
+
+    return w8Protected || favorites;
   }
 
   @override

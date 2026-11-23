@@ -8,6 +8,8 @@ import '../view_models/movie_detail_view_model.dart';
 import '../view_models/sign_up_view_model.dart';
 import '../widgets/rating_dialog.dart';
 import '../widgets/tmdb_poster_image.dart';
+import '../widgets/favorite_button.dart';
+import '../view_models/favorite_detail_view_model.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   const MovieDetailScreen({super.key, required this.movie});
@@ -19,7 +21,16 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  bool isFavorite = false;
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<FavoriteDetailViewModel>().load();
+      }
+    });
+  }
 
   Future<void> _createRating() async {
     final saved = await showDialog<bool>(
@@ -148,24 +159,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           },
           icon: const Icon(Icons.arrow_back),
         ),
-        actions: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                isFavorite = !isFavorite;
-              });
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    isFavorite ? '즐겨찾기에 추가했습니다.' : '즐겨찾기에서 삭제했습니다.',
-                  ),
-                ),
-              );
-            },
-            icon: Icon(isFavorite ? Icons.bookmark : Icons.bookmark_border),
-          ),
-        ],
+        actions: const [FavoriteButton()],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

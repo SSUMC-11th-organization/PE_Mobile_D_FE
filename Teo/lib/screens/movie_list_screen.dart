@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../view_models/movie_list_view_model.dart';
+import '../view_models/load_phase.dart';
+import '../view_models/paged_movies_view_model.dart';
 import '../widgets/movie_grid.dart';
+import '../widgets/movie_page_footer.dart';
+
+import 'package:go_router/go_router.dart';
 
 class MovieListScreen extends StatelessWidget {
   const MovieListScreen({super.key});
 
   void _showGenreBottomSheet(
     BuildContext context,
-    MovieListViewModel viewModel,
+    PagedMoviesViewModel viewModel,
   ) {
     showModalBottomSheet(
       context: context,
@@ -45,14 +49,18 @@ class MovieListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<MovieListViewModel>(
+    return Consumer<PagedMoviesViewModel>(
       builder: (context, viewModel, child) {
-        final isLoading = viewModel.status == MovieListLoadStatus.loading;
+        final isLoading = viewModel.phase == LoadPhase.loading;
 
         return Scaffold(
           appBar: AppBar(
             title: const Text('영화'),
             actions: [
+              IconButton(
+                onPressed: () => context.push('/movies/search'),
+                icon: const Icon(Icons.search),
+              ),
               IconButton(
                 onPressed: isLoading
                     ? null
@@ -69,9 +77,7 @@ class MovieListScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   itemCount: viewModel.genres.length + 1,
-                  separatorBuilder: (context, index) {
-                    return const SizedBox(width: 8);
-                  },
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return ChoiceChip(
@@ -96,20 +102,24 @@ class MovieListScreen extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: switch (viewModel.status) {
-                  MovieListLoadStatus.idle ||
-                  MovieListLoadStatus.loading => const MovieListLoading(),
+                child: switch (viewModel.phase) {
+                  LoadPhase.idle ||
+                  LoadPhase.loading => const MovieListLoading(),
 
-                  MovieListLoadStatus.error => MovieListError(
-                    message: viewModel.message,
-                    onRetry: () =>
-                        context.read<MovieListViewModel>().loadInitial(),
+                  LoadPhase.error => MovieListError(
+                    message: viewModel.errorMessage,
+                    onRetry: () => viewModel.loadInitial(
+                      genreId: viewModel.selectedGenreId,
+                    ),
                   ),
 
-                  MovieListLoadStatus.empty => const MovieListEmpty(),
+                  LoadPhase.empty => const MovieListEmpty(),
 
-                  MovieListLoadStatus.success => MovieGrid(
-                    movies: viewModel.movies,
+                  LoadPhase.ready => Column(
+                    children: [
+                      Expanded(child: MovieGrid(movies: viewModel.movies)),
+                      MoviePageFooter(vm: viewModel),
+                    ],
                   ),
                 },
               ),

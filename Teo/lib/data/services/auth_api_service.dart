@@ -9,7 +9,7 @@ class AuthApiService {
   final Dio _dio;
 
   Future<LoginResult> login(LoginRequest request) async {
-    final response = await _dio.post('/v7/auth/login', data: request.toJson());
+    final response = await _dio.post('/v8/auth/login', data: request.toJson());
 
     final data = response.data;
 
