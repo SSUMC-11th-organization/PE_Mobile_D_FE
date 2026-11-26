@@ -12,7 +12,7 @@ import 'package:movielog/view_models/session_rating_store.dart';
 
 import '../helpers/fake_auth.dart';
 
-/// v7 PATCH/DELETE만 흉내 낸다. 토큰 기반 목록 GET은 없으므로 호출되면 실패한다.
+/// v8 PATCH/DELETE만 흉내 낸다. 토큰 기반 목록 GET은 없으므로 호출되면 실패한다.
 class _FakeRatingApiService extends RatingApiService {
   _FakeRatingApiService() : super(Dio(), Dio());
 
@@ -94,7 +94,7 @@ DioException _tmdbNotFound() {
 }
 
 DioException _networkError() => DioException.connectionError(
-  requestOptions: RequestOptions(path: '/v7/ratings/1'),
+  requestOptions: RequestOptions(path: '/v8/ratings/1'),
   reason: 'offline',
 );
 

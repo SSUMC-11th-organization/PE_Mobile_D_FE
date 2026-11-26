@@ -68,7 +68,8 @@ class _RatingList extends StatelessWidget {
       builder: (_) => RatingDialog(
         initialScore: rating.score,
         initialComment: rating.comment, // null이면 빈 칸으로 시작
-        onSubmit: (score, comment) => viewModel.updateRating(
+        // 수정에서는 체크박스를 보이지 않으므로 세 번째 값(addToFavorites)은 쓰지 않는다
+        onSubmit: (score, comment, _) => viewModel.updateRating(
           ratingId: rating.ratingId,
           score: score,
           comment: comment,

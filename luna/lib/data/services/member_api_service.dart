@@ -9,7 +9,7 @@ class MemberApiService {
   final Dio _authDio;
 
   Future<MemberInfo> fetchMe() async {
-    final response = await _authDio.get('/v7/members/me');
+    final response = await _authDio.get('/v8/members/me');
     return parseMemberInfo(response.data);
   }
 
@@ -17,7 +17,7 @@ class MemberApiService {
   /// 중복은 MEMBER409_1(회원가입의 COMMON409와 다름), 자기 현재 닉네임은 중복이 아니다.
   Future<MemberInfo> updateNickname(String nickname) async {
     final response = await _authDio.patch(
-      '/v7/members/me',
+      '/v8/members/me',
       data: {'nickname': nickname},
     );
     return parseMemberInfo(response.data);

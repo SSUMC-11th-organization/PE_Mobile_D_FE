@@ -9,7 +9,7 @@ import '../widgets/common/movie_log_app_bar.dart';
 import '../widgets/common/movie_log_button.dart';
 import '../widgets/profile/edit_profile_button.dart';
 import '../widgets/profile/favorite_genres.dart';
-import '../widgets/profile/my_ratings_entry.dart';
+import '../widgets/profile/profile_menu_entry.dart';
 import '../widgets/profile/profile_header.dart';
 import '../widgets/profile/profile_stats.dart';
 
@@ -117,7 +117,16 @@ class _ProfileContent extends StatelessWidget {
               const SizedBox(height: 24),
               const ProfileStats(stats: _stats),
               const SizedBox(height: 24),
-              const MyRatingsEntry(),
+              const ProfileMenuEntry(
+                title: '내가 등록한 평점',
+                location: '/my/ratings',
+              ),
+              const SizedBox(height: 12),
+              // 내 정보(member)가 준비된 뒤에만 이 화면이 그려지므로 행도 그때부터 누를 수 있다
+              const ProfileMenuEntry(
+                title: '내 즐겨찾기',
+                location: '/my/favorites',
+              ),
               const SizedBox(height: 32),
               const FavoriteGenres(genres: _genres),
             ],

@@ -4,20 +4,35 @@ import '../../data/models/rating_request.dart';
 import '../common/movie_log_button.dart';
 import '../movie/movie_rating_input.dart';
 
+/// onSubmit이 던지면 입력을 유지하지 않고 Dialog를 닫는다.
+/// 다시 시도해도 같은 결과인 오류(이미 평점·이미 즐겨찾기·회원 없음)에 쓰며,
+/// 안내는 Dialog를 연 화면이 Snackbar로 보여준다.
+class RatingDialogClose implements Exception {
+  const RatingDialogClose();
+}
+
 /// 별점과 코멘트를 입력받아 onSubmit으로 저장하는 커스텀 Dialog.
-/// 저장에 성공하면 true, 취소하면 false를 돌려준다.
-/// onSubmit이 실패하면 Dialog를 유지해 입력을 보존하고 다시 시도할 수 있게 한다.
+/// 저장에 성공하면 true, 취소하거나 RatingDialogClose로 닫히면 false를 돌려준다.
+/// onSubmit이 그 밖의 오류로 실패하면 Dialog를 유지해 입력을 보존하고 다시 시도할 수 있게 한다.
 class RatingDialog extends StatefulWidget {
   const RatingDialog({
     super.key,
     this.initialScore = 0,
     this.initialComment,
+    this.showAddToFavorite = false,
     required this.onSubmit,
   });
 
   final int initialScore;
   final String? initialComment;
-  final Future<void> Function(int score, String? comment) onSubmit;
+
+  /// "즐겨찾기에도 추가" 체크박스 표시 여부. 평점 수정에서도 같은 Dialog를 쓰므로 기본은 숨긴다.
+  /// 상세 화면의 "평점 남기기"에서 아직 즐겨찾기하지 않은 영화일 때만 true
+  final bool showAddToFavorite;
+
+  /// 체크박스가 보이지 않으면 addToFavorites는 항상 false
+  final Future<void> Function(int score, String? comment, bool addToFavorites)
+  onSubmit;
 
   @override
   State<RatingDialog> createState() => _RatingDialogState();
@@ -33,6 +48,7 @@ class _RatingDialogState extends State<RatingDialog> {
     text: widget.initialComment ?? '',
   );
   bool _isSubmitting = false;
+  bool _addToFavorites = false;
   String? _errorText;
 
   @override
@@ -54,9 +70,16 @@ class _RatingDialogState extends State<RatingDialog> {
     });
 
     try {
-      await widget.onSubmit(_score, trimmed.isEmpty ? null : trimmed);
+      await widget.onSubmit(
+        _score,
+        trimmed.isEmpty ? null : trimmed,
+        widget.showAddToFavorite && _addToFavorites,
+      );
       if (!mounted) return;
       Navigator.pop(context, true);
+    } on RatingDialogClose {
+      if (!mounted) return;
+      Navigator.pop(context, false);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -115,6 +138,18 @@ class _RatingDialogState extends State<RatingDialog> {
                   hintText: '이 영화의 인상적인 장면은...',
                 ),
               ),
+              if (widget.showAddToFavorite)
+                CheckboxListTile(
+                  value: _addToFavorites,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) =>
+                            setState(() => _addToFavorites = value ?? false),
+                  title: const Text('즐겨찾기에도 추가'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
               if (_errorText != null) ...[
                 const SizedBox(height: 8),
                 Text(

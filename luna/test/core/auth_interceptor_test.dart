@@ -39,21 +39,46 @@ void main() {
       adapter.headers[url]?['Authorization'] as String?;
 
   test('보호 경로(me, ratings)에만 Bearer 토큰을 붙인다', () async {
-    await dio.get('/v7/members/me');
-    await dio.post('/v7/ratings');
-    await dio.patch('/v7/ratings/12');
+    await dio.get('/v8/members/me');
+    await dio.post('/v8/ratings');
+    await dio.patch('/v8/ratings/12');
 
     const base = 'https://workbook.devnoco.com';
-    expect(authorizationOf('$base/v7/members/me'), 'Bearer jwt');
-    expect(authorizationOf('$base/v7/ratings'), 'Bearer jwt');
-    expect(authorizationOf('$base/v7/ratings/12'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/members/me'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/ratings'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/ratings/12'), 'Bearer jwt');
   });
 
   test('로그인·중복 체크·유저별 평점 조회·다른 host에는 토큰을 붙이지 않는다', () async {
-    await dio.post('/v7/auth/login');
-    await dio.get('/v7/members/nickname/abc');
-    await dio.get('/v7/members/1/ratings');
+    await dio.post('/v8/auth/login');
+    await dio.get('/v8/members/nickname/abc');
+    await dio.get('/v8/members/1/ratings');
     await dio.get('https://api.themoviedb.org/3/movie/popular');
+
+    for (final headers in adapter.headers.values) {
+      expect(headers.containsKey('Authorization'), isFalse);
+    }
+  });
+
+  test('즐겨찾기는 계약된 method·movieId 경로에만 토큰을 붙인다', () async {
+    const base = 'https://workbook.devnoco.com';
+    await dio.get('/v8/favorites');
+    await dio.post('/v8/favorites');
+    await dio.get('/v8/favorites/550');
+    await dio.delete('/v8/favorites/551');
+    await dio.post('/v8/movie-records');
+
+    expect(authorizationOf('$base/v8/favorites'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/favorites/550'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/favorites/551'), 'Bearer jwt');
+    expect(authorizationOf('$base/v8/movie-records'), 'Bearer jwt');
+
+    adapter.headers.clear();
+    await dio.delete('/v8/favorites'); // 목록 경로의 DELETE는 계약에 없다
+    await dio.patch('/v8/favorites/550');
+    await dio.get('/v8/favorites/0');
+    await dio.get('/v8/favorites/abc');
+    await dio.get('/v7/members/me'); // 이전 버전 경로에는 더 이상 붙이지 않는다
 
     for (final headers in adapter.headers.values) {
       expect(headers.containsKey('Authorization'), isFalse);
@@ -63,10 +88,10 @@ void main() {
   test('토큰이 없으면 Header 없이 보내 서버가 AUTH401_2로 판단하게 한다', () async {
     storage.token = null;
 
-    await dio.get('/v7/members/me');
+    await dio.get('/v8/members/me');
 
     expect(
-      authorizationOf('https://workbook.devnoco.com/v7/members/me'),
+      authorizationOf('https://workbook.devnoco.com/v8/members/me'),
       isNull,
     );
   });
@@ -75,7 +100,7 @@ void main() {
     storage.readError = Exception('keychain');
 
     await expectLater(
-      dio.get('/v7/members/me'),
+      dio.get('/v8/members/me'),
       throwsA(
         isA<DioException>()
             .having((e) => e.response, 'response', isNull)

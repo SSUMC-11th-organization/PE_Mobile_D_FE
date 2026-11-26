@@ -7,7 +7,7 @@ import 'package:movielog/view_models/auth_view_model.dart';
 import '../helpers/fake_auth.dart';
 
 DioException _networkError() => DioException.connectionError(
-  requestOptions: RequestOptions(path: '/v7/members/me'),
+  requestOptions: RequestOptions(path: '/v8/members/me'),
   reason: 'offline',
 );
 
@@ -135,7 +135,7 @@ void main() {
 
     test('네트워크 실패와 저장 실패는 입력 오류와 다른 문구로 구분한다', () async {
       authApi.error = DioException.connectionError(
-        requestOptions: RequestOptions(path: '/v7/auth/login'),
+        requestOptions: RequestOptions(path: '/v8/auth/login'),
         reason: 'offline',
       );
       await auth.login('a@b.com', 'pw');

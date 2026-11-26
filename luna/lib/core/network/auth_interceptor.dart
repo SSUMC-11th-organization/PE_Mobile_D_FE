@@ -11,14 +11,32 @@ class AuthInterceptor extends Interceptor {
 
   static const _host = 'workbook.devnoco.com';
 
-  // host와 path를 함께 확인해 TMDB·외부 이미지 URL에는 토큰이 실리지 않게 한다
+  static final _favoriteByMovie = RegExp(r'^/v8/favorites/[1-9]\d*$');
+
+  // host와 path를 함께 확인해 TMDB·외부 이미지 URL에는 토큰이 실리지 않게 한다.
+  // 로그인·회원가입·중복 확인·유저별 평점 조회는 보호 요청이 아니다
   bool _isProtected(RequestOptions options) {
     final uri = options.uri;
+    if (uri.host != _host) return false;
     final path = uri.path;
-    return uri.host == _host &&
-        (path == '/v7/members/me' ||
-            path == '/v7/ratings' ||
-            path.startsWith('/v7/ratings/'));
+    final method = options.method.toUpperCase();
+
+    // 8주차에서 쓰던 보호 경로를 /v8로 옮긴 것
+    final w8Protected =
+        path == '/v8/members/me' ||
+        path == '/v8/ratings' ||
+        path.startsWith('/v8/ratings/');
+
+    // 즐겨찾기: 등록(POST)·목록(GET) / 특정 영화 여부(GET)·해제(DELETE). 경로의 숫자는 TMDB movieId
+    final favorites =
+        (path == '/v8/favorites' && (method == 'GET' || method == 'POST')) ||
+        (_favoriteByMovie.hasMatch(path) &&
+            (method == 'GET' || method == 'DELETE'));
+
+    // 평점·즐겨찾기 통합 저장(Challenge)
+    final movieRecord = path == '/v8/movie-records' && method == 'POST';
+
+    return w8Protected || favorites || movieRecord;
   }
 
   @override

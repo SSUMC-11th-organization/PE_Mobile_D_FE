@@ -78,7 +78,7 @@ final testMember = MemberInfo(
 );
 
 /// 서버 공통 오류 형식의 DioException.
-DioException apiError(int statusCode, String code, {String path = '/v7'}) {
+DioException apiError(int statusCode, String code, {String path = '/v8'}) {
   final options = RequestOptions(path: path);
   return DioException.badResponse(
     statusCode: statusCode,

@@ -5,13 +5,18 @@ import 'package:provider/provider.dart';
 
 import 'core/network/movie_log_client.dart';
 import 'core/network/tmdb_client.dart';
+import 'core/session/auth_session_bridge.dart';
+import 'core/session/session_guard.dart';
 import 'core/storage/token_storage.dart';
 import 'data/services/auth_api_service.dart';
+import 'data/services/favorite_api_service.dart';
 import 'data/services/member_api_service.dart';
+import 'data/services/movie_record_api_service.dart';
 import 'data/services/rating_api_service.dart';
 import 'data/services/sign_up_service.dart';
 import 'data/services/tmdb_movie_service.dart';
 import 'router/app_router.dart';
+import 'services/movie_list_preference.dart';
 import 'services/saved_email_preference.dart';
 import 'theme/app_theme.dart';
 import 'view_models/auth_view_model.dart';
@@ -35,6 +40,8 @@ class MovieLogApp extends StatelessWidget {
         Provider<TokenStorage>.value(value: tokenStorage),
         // 로그인 화면의 '이메일 저장'(이메일만, 평문 저장소)
         Provider<SavedEmailPreference>(create: (_) => SavedEmailPreference()),
+        // 영화 목록의 장르·정렬 선택 저장(5주차 Challenge)
+        Provider<MovieListPreference>(create: (_) => MovieListPreference()),
         Provider<TmdbMovieService>(
           create: (_) => TmdbMovieService(createTmdbClient()),
         ),
@@ -47,6 +54,14 @@ class MovieLogApp extends StatelessWidget {
         Provider<RatingApiService>(
           create: (_) => RatingApiService(publicClient, authClient),
         ),
+        // 보호 Client: 즐겨찾기 등록·목록·여부·해제(JWT로 사용자 구분, memberId 없음)
+        Provider<FavoriteApiService>(
+          create: (_) => FavoriteApiService(authClient),
+        ),
+        // 보호 Client: 평점·즐겨찾기 통합 저장(Challenge)
+        Provider<MovieRecordApiService>(
+          create: (_) => MovieRecordApiService(authClient),
+        ),
         ChangeNotifierProvider<AuthViewModel>(
           create: (context) => AuthViewModel(
             context.read<AuthApiService>(),
@@ -58,6 +73,25 @@ class MovieLogApp extends StatelessWidget {
         ChangeNotifierProvider<SessionRatingStore>(
           create: (context) =>
               SessionRatingStore(context.read<AuthViewModel>()),
+        ),
+        // AuthViewModel의 sessionVersion·확인된 email을 SessionGuard에 전달한다.
+        // 앱 시작부터 로그인 변화를 놓치지 않도록 바로 만든다(lazy: false)
+        Provider<AuthSessionBridge>(
+          lazy: false,
+          create: (context) {
+            final auth = context.read<AuthViewModel>();
+            return AuthSessionBridge(
+              authSignals: auth,
+              sessionVersion: () => auth.sessionVersion,
+              verifiedEmail: () => auth.status == AuthStatus.signedIn
+                  ? auth.member?.email
+                  : null,
+            );
+          },
+          dispose: (_, bridge) => bridge.dispose(),
+        ),
+        Provider<SessionGuard>(
+          create: (context) => context.read<AuthSessionBridge>().guard,
         ),
       ],
       child: const _MovieLogRouterApp(),
