@@ -23,7 +23,13 @@ import '../screens/profile_screen.dart';
 import '../screens/sign_up_screen.dart';
 import '../widgets/movielog_button.dart';
 import '../view_models/movie_home_view_model.dart';
-import '../view_models/movie_list_view_model.dart';
+import '../core/session/session_guard.dart';
+import '../data/services/favorite_api_service.dart';
+import '../screens/favorites_screen.dart';
+import '../screens/movie_search_screen.dart';
+import '../view_models/favorite_detail_view_model.dart';
+import '../view_models/favorites_view_model.dart';
+import '../view_models/paged_movies_view_model.dart';
 
 String? authRedirect(AuthStatus status, String location) {
   const publicPaths = {'/login', '/register'};
@@ -100,12 +106,36 @@ class AppRouter {
             GoRoute(
               path: '/movies',
               builder: (context, state) =>
-                  ChangeNotifierProvider<MovieListViewModel>(
+                  ChangeNotifierProvider<PagedMoviesViewModel>(
                     create: (context) =>
-                        MovieListViewModel(context.read<TmdbMovieService>())
+                        PagedMoviesViewModel(
+                            tmdbApi: context.read<TmdbMovieService>(),
+                          )
+                          ..loadGenres()
                           ..loadInitial(),
                     child: const MovieListScreen(),
                   ),
+              routes: [
+                // 정적인 search를 동적인 /movies/:movieId보다 먼저 등록합니다.
+                GoRoute(
+                  path: 'search',
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) =>
+                      ChangeNotifierProvider<PagedMoviesViewModel>(
+                        create: (context) => PagedMoviesViewModel(
+                          tmdbApi: context.read<TmdbMovieService>(),
+                        ),
+                        child: MovieSearchScreen(
+                          onOpenMovie: (movie) async {
+                            await context.push(
+                              '/movies/${movie.id}',
+                              extra: movie,
+                            );
+                          },
+                        ),
+                      ),
+                ),
+              ],
             ),
             GoRoute(
               path: '/my',
@@ -155,6 +185,54 @@ class AppRouter {
                     );
                   },
                 ),
+                GoRoute(
+                  path: 'favorites', // 최종 경로: /my/favorites
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (context, state) {
+                    final auth = context.watch<AuthViewModel>();
+                    final member = auth.member;
+                    final guard = context.read<SessionGuard>();
+                    if (member == null) {
+                      return Scaffold(
+                        appBar: AppBar(
+                          title: const Text('내 즐겨찾기'),
+                          centerTitle: true,
+                        ),
+                        body: Center(
+                          child: auth.memberStatus == MemberLoadStatus.error
+                              ? FilledButton(
+                                  onPressed: () => auth.loadMember(force: true),
+                                  child: const Text('내 정보 다시 조회'),
+                                )
+                              : const CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    if (guard.accountId != member.email) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return ChangeNotifierProvider<FavoritesViewModel>(
+                      key: ValueKey('${member.email}:${guard.generation}'),
+                      create: (_) => FavoritesViewModel(
+                        favoriteApi: context.read<FavoriteApiService>(),
+                        tmdbApi: context.read<TmdbMovieService>(),
+                        sessionGuard: guard,
+                        accountId: member.email,
+                        onSessionExpired: auth.expireSession,
+                      ),
+                      child: FavoritesScreen(
+                        onOpenMovie: (movie) async {
+                          await context.push(
+                            '/movies/${movie.id}',
+                            extra: movie,
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ],
@@ -168,12 +246,32 @@ class AppRouter {
                 body: Center(child: Text('영화 ID가 올바르지 않습니다.')),
               );
             }
+            final auth = context.watch<AuthViewModel>();
+            final member = auth.member;
+            final guard = context.read<SessionGuard>();
+            // 내 정보가 준비되고 현재 세션과 일치할 때까지 로딩을 보여 줍니다.
+            if (member == null || guard.accountId != member.email) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
             final extra = state.extra;
-            return MovieDetailLoader(
-              movieId: id,
-              initialMovie: extra is TmdbMovieDto && extra.id == id
-                  ? extra
-                  : null,
+            return ChangeNotifierProvider<FavoriteDetailViewModel>(
+              // 계정이나 세션이 바뀌면 새 ViewModel을 만듭니다.
+              key: ValueKey('${member.email}:${guard.generation}'),
+              create: (_) => FavoriteDetailViewModel(
+                movieId: id,
+                favoriteApi: context.read<FavoriteApiService>(),
+                sessionGuard: guard,
+                accountId: member.email,
+                onSessionExpired: auth.expireSession,
+              ),
+              child: MovieDetailLoader(
+                movieId: id,
+                initialMovie: extra is TmdbMovieDto && extra.id == id
+                    ? extra
+                    : null,
+              ),
             );
           },
         ),
